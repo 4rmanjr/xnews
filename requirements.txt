@@ -1,5 +1,17 @@
+# Core Dependencies
 duckduckgo-search
 python-dateutil
 trafilatura
 tqdm
 deep-translator
+requests
+
+# AI & Analysis
+groq
+textblob
+
+# Rich Console UI
+rich
+
+# Environment Variables
+python-dotenv
