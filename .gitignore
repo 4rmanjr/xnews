@@ -1,0 +1,15 @@
+# Data & Reports
+*.csv
+*.md
+
+# Except README
+!README.md
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# System
+.DS_Store
