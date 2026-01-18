@@ -2,3 +2,4 @@ duckduckgo-search
 python-dateutil
 trafilatura
 tqdm
+deep-translator
