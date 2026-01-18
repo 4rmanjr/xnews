@@ -14,6 +14,7 @@ import difflib
 import hashlib
 import warnings
 import logging
+import urllib.parse
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -213,32 +214,46 @@ def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
         truncated = text[:2000] if len(text) > 2000 else text
         safe_topic = topic.replace(" ", "")
         
-        system_prompt = """Kamu adalah social media manager profesional yang viral. Buat tweet yang MEMAKSIMALKAN ruang karakter:
+        system_prompt = """Kamu adalah copywriter media sosial handal yang ahli membuat konten viral dan interaktif.
 
-ATURAN PENTING:
-1. TARGET 240-250 karakter (GUNAKAN SEMUA RUANG, jangan terlalu pendek!)
-2. Jika terlalu pendek, TAMBAHKAN detail menarik atau konteks
-3. Hook yang menarik perhatian di awal dengan emoji
-4. Gunakan 2-3 emoji yang relevan dan eye-catching
-5. Gaya bahasa santai, engaging, seperti influencer
-6. Buat pembaca penasaran untuk klik link
-7. Hindari kalimat generik, buat spesifik dan unik
+TUGAS:
+Buat ringkasan berita untuk Twitter/X dengan gaya "Bullet Point" yang estetik dan memancing interaksi.
 
-STRUKTUR IDEAL:
-[Emoji] [Hook menarik] + [Fakta/angka spesifik] + [Call to curiosity] [Emoji]
+STRUKTUR WAJIB:
+1. [Headline Singkat & Nendang] + [Emoji Relevan]
+2. [Baris kosong]
+3. • [Poin Kunci 1 - singkat, padat]
+4. • [Poin Kunci 2 - singkat, padat]
+5. • [Poin Kunci 3 - singkat, padat]
+6. [Baris kosong]
+7. [Pertanyaan/Opini pancingan interaksi?] [Emoji]
 
-CONTOH BAGUS (240+ karakter):
-"🚨 BREAKING: Bitcoin tembus $100K untuk pertama kalinya! Analis prediksi rally masih berlanjut hingga Q2 2026. Apakah ini momentum terbaik untuk masuk? Para whale sudah mulai akumulasi 🐋💰"
+GAYA BAHASA:
+- Gunakan Bahasa Indonesia yang luwes, modern, dan "hidup" (tidak kaku seperti bot).
+- Headline harus memancing rasa ingin tahu ("Hook").
+- Poin-poin harus fakta utama yang paling menarik.
+- Penutup adalah pertanyaan retoris atau ajakan diskusi untuk audiens.
 
-JANGAN sertakan hashtag, akan ditambahkan otomatis.
-JANGAN gunakan tanda kutip di awal/akhir output."""
+CONTOH OUTPUT YANG DIINGINKAN:
+Grok akhirnya "tobat"! 🛡️
+
+• Fitur edit foto vulgar resmi diblokir
+• xAI tunduk pada aturan global & hukum
+• Akses gambar kini khusus user premium
+
+Langkah tepat buat jaga keamanan digital? 🧐
+
+ATURAN TAMBAHAN:
+- JANGAN pakai hashtag (akan ditambah otomatis oleh sistem).
+- JANGAN pakai tanda kutip di awal/akhir.
+- Total panjang maksimal 230 karakter (agar muat link)."""
 
         user_prompt = f"""Judul: {title}
 
 Isi berita:
 {truncated}
 
-Buat tweet MAKSIMAL yang engaging dari berita di atas. GUNAKAN SEMUA RUANG sampai 250 karakter!"""
+Buat tweet dengan struktur bullet point di atas. Pastikan menarik dan memancing diskusi!"""
 
         response = client.chat.completions.create(
             model=GROQ_MODEL,
@@ -612,6 +627,12 @@ def get_relevant_emoji(text):
         return "⚖️"
     return "📢"
 
+def generate_twitter_intent_url(text):
+    """Generate a click-to-tweet URL."""
+    base_url = "https://twitter.com/intent/tweet"
+    encoded_text = urllib.parse.quote(text)
+    return f"{base_url}?text={encoded_text}"
+
 def generate_tweet(title, text, topic, ai_summary=""):
     """Create interactive tweet draft, max 280 characters."""
     emoji = get_relevant_emoji(title + " " + topic)
@@ -709,31 +730,46 @@ def save_to_markdown(news_list, filename, topic):
     except IOError as e:
         console.print(f"[red]❌ Gagal MD: {e}[/red]")
 
-def display_results_table(news_list):
+def display_results_table(news_list, topic=""):
     """Display results in a rich table."""
     if not news_list:
         return
     
     table = Table(
-        title="📊 Hasil Pencarian Berita",
+        title=f"📊 Hasil Pencarian Berita: {topic}",
         box=box.ROUNDED,
         show_lines=True
     )
     
     table.add_column("No", style="cyan", width=4)
-    table.add_column("Judul", style="white", max_width=50)
-    table.add_column("Sumber", style="green", width=15)
-    table.add_column("Tanggal", style="yellow", width=12)
+    table.add_column("Judul", style="white", max_width=40)
+    table.add_column("Sumber", style="green", width=12)
     table.add_column("Sentiment", style="magenta", width=10)
+    table.add_column("Action", style="bold blue", justify="center")
     
     for i, news in enumerate(news_list[:10], 1):  # Show max 10 in table
-        title = news.get('title', 'N/A')[:47] + "..." if len(news.get('title', '')) > 50 else news.get('title', 'N/A')
-        source = news.get('source', 'N/A')[:12]
-        date = news.get('formatted_date', 'N/A')[:10]
+        title = news.get('title', 'N/A')
+        disp_title = title[:37] + "..." if len(title) > 40 else title
+        source_name = news.get('source', 'N/A')[:12]
+        url = news.get('url', '#')
+        
         sentiment = news.get('sentiment', {})
         sent_str = f"{sentiment.get('emoji', '')} {sentiment.get('label', 'N/A')}"
         
-        table.add_row(str(i), title, source, date, sent_str)
+        # Clickable Source
+        source_link = f"[link={url}]{source_name}[/link]"
+        
+        # Prepare Tweet
+        ai_tweet = news.get('ai_tweet', '')
+        if ai_tweet:
+            tweet_text = ai_tweet
+        else:
+            tweet_text = generate_tweet(title, news.get('full_text', ''), topic, news.get('ai_summary', ''))
+            
+        tweet_url = generate_twitter_intent_url(tweet_text)
+        action_link = f"[link={tweet_url}]🐦 Post[/link]"
+        
+        table.add_row(str(i), disp_title, source_link, sent_str, action_link)
     
     console.print(table)
     
@@ -831,7 +867,7 @@ def interactive_mode():
         final_news = enrich_news_content(filtered, do_translate=do_trans, do_summarize=do_summary, do_sentiment=True, topic=topic)
         
         # Display
-        display_results_table(final_news)
+        display_results_table(final_news, topic)
         
         # Save
         ts = int(time.time())
@@ -903,7 +939,7 @@ Contoh Penggunaan:
             )
             
             # Display table
-            display_results_table(final_news)
+            display_results_table(final_news, args.topik)
             
             safe_topic = "".join([c if c.isalnum() else "_" for c in args.topik])
             save_to_csv(final_news, f"news_{safe_topic}.csv")
