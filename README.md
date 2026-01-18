@@ -1,26 +1,20 @@
-# 📰 xnews - Smart News Fetcher
+# 📰 xnews - Smart News Fetcher Turbo
 
-**xnews** adalah alat Command Line Interface (CLI) pintar yang dirancang untuk mencari, menyaring, dan melaporkan berita terkini secara efisien. Alat ini tidak sekadar mencari, tetapi juga **membersihkan** hasil pencarian agar Anda mendapatkan informasi yang relevan, bebas duplikat, dan mudah dibaca.
+**xnews** adalah alat Command Line Interface (CLI) canggih yang dirancang untuk mencari, menyaring, mengekstrak, dan menerjemahkan berita secara otomatis. Alat ini dibuat untuk riset berita yang efektif, handal, dan pintar.
 
-## ✨ Fitur Unggulan
+## ✨ Fitur Utama
 
-*   🧠 **Smart Deduplication:** Algoritma cerdas yang mendeteksi dan menghapus berita duplikat (judul yang sama atau sangat mirip) dari berbagai sumber.
-*   📅 **Freshness Filter:** Secara otomatis menyaring berita lawas dan hanya menampilkan artikel yang dipublikasikan dalam **48 jam terakhir**.
-*   🛡️ **Robust & Reliable:** Dilengkapi fitur *Auto-Retry* yang membuat aplikasi tetap berjalan lancar meski koneksi internet tidak stabil.
-*   📊 **Dual Output:**
-    *   **CSV:** Untuk analisis data mentah.
-    *   **Markdown (.md):** Laporan rapi yang siap dibaca atau dipublikasikan.
-*   🚀 **Zero Config Setup:** Script peluncur (`jalankan.sh`) otomatis membuat *virtual environment* dan menginstall dependencies. Tidak perlu setup manual!
+*   🚀 **Turbo Mode (Parallel Processing):** Mengambil isi penuh puluhan berita secara bersamaan (Multithreading) dengan kecepatan tinggi.
+*   🌍 **Smart Translator:** Terjemahkan berita asing otomatis ke Bahasa Indonesia menggunakan Google Neural Machine Translation (Gratis & Tanpa API Key).
+*   📄 **Full Text Extraction:** Tidak hanya ringkasan, aplikasi menarik seluruh isi artikel berita secara bersih (tanpa iklan/sampah).
+*   🧠 **Smart Deduplication:** Algoritma cerdas yang menghapus berita duplikat atau sangat mirip.
+*   📂 **Organized Output:** Semua laporan tersimpan rapi di folder `reports/` (otomatis diabaikan oleh Git).
+*   📊 **Dual Format:** Menghasilkan file CSV (data mentah) dan Markdown (laporan rapi siap baca).
+*   📅 **Freshness Filter:** Hanya menampilkan berita yang terbit dalam **48 jam terakhir**.
 
 ## 🛠️ Instalasi
 
-### Prasyarat
-*   Sistem Operasi: Linux / macOS
-*   Python 3.x
-*   Koneksi Internet
-
-### Cara Cepat (Langsung Jalan)
-Cukup clone repositori ini dan jalankan script utamanya. Script ini akan mengurus sisanya.
+Cukup clone repositori ini dan jalankan script peluncur. Script akan otomatis mengatur *virtual environment* dan library yang dibutuhkan.
 
 ```bash
 git clone git@github.com:4rmanjr/xnews.git
@@ -28,47 +22,46 @@ cd xnews
 ./jalankan.sh
 ```
 
-### 🌍 Pasang Secara Global (Opsional)
-Agar bisa dijalankan dari folder mana saja dengan perintah `xnews`, tambahkan alias ke konfigurasi shell Anda (`.bashrc` atau `.zshrc`):
-
+### Jalankan Secara Global
+Tambahkan alias ke shell Anda (misal `.zshrc` atau `.bashrc`):
 ```bash
-echo "alias xnews='/path/to/your/xnews/jalankan.sh'" >> ~/.zshrc
-source ~/.zshrc
+alias xnews='/path/to/xnews/jalankan.sh'
 ```
-*(Ganti `/path/to/your/xnews` dengan lokasi folder xnews Anda)*
 
-## 📖 Cara Penggunaan
+## 📖 Panduan Penggunaan
+
+Aplikasi mendukung dua mode penggunaan:
 
 ### 1. Mode Interaktif
-Jalankan tanpa argumen, dan aplikasi akan memandu Anda:
+Jalankan tanpa argumen untuk dipandu langkah demi langkah:
 ```bash
 xnews
 ```
 
-### 2. Mode Cepat (Command Line)
-Cari berita langsung dengan satu baris perintah:
-
-**Cari topik umum (Internasional):**
+### 2. Mode Command Line (Dapatkan Bantuan)
+Gunakan perintah `--help` untuk melihat semua dokumentasi:
 ```bash
-xnews "Artificial Intelligence"
+xnews --help
 ```
 
-**Cari topik spesifik (Indonesia) dengan limit hasil:**
+**Contoh Perintah:**
 ```bash
-xnews "Banjir Jakarta" --indo --limit 50
+# Cari berita Indonesia tentang "Ekonomi Digital"
+xnews "Ekonomi Digital" --indo
+
+# Cari berita global tentang "SpaceX" dan terjemahkan ke Indonesia
+xnews "SpaceX" --translate --limit 10
 ```
 
-## 📂 Struktur Output
-
-Setiap pencarian akan menghasilkan dua file di folder Anda saat ini:
-
-1.  `news_Topik_Timestamp.csv`: Data mentah berisi Judul, Sumber, Tanggal, URL, dan Snippet.
-2.  `Laporan_Topik_Timestamp.md`: Laporan yang diformat rapi dengan judul, kutipan, dan link sumber.
-
-## 🤝 Kontribusi
-
-Pull requests dipersilakan! Untuk perubahan besar, mohon buka *issue* terlebih dahulu untuk mendiskusikan apa yang ingin Anda ubah.
+## 📂 Struktur Proyek
+```text
+xnews/
+├── reports/          # SEMUA HASIL (.csv & .md) ada di sini
+├── jalankan.sh       # Launcher otomatis
+├── news_fetcher.py   # Mesin utama (Turbo Mode)
+├── requirements.txt  # Daftar library
+└── README.md         # Panduan ini
+```
 
 ## 📄 Lisensi
-
 [MIT](https://choosealicense.com/licenses/mit/)
