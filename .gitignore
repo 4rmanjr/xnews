@@ -1,6 +1,5 @@
 # Data & Reports
-*.csv
-*.md
+reports/
 
 # Except README
 !README.md

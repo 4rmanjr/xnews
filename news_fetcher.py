@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
 import csv
 import argparse
 import sys
+import os
 import time
 import difflib
 import random
@@ -21,6 +21,7 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2
 MAX_THREADS = 10  # Jumlah "kurir" download paralel
 TIMEOUT_SECONDS = 10 # Batas waktu per artikel
+OUTPUT_DIR = "reports" # Folder penyimpanan hasil
 
 # Supress Logs & Warnings
 warnings.filterwarnings("ignore", message="This package.*renamed.*ddgs")
@@ -36,11 +37,16 @@ class Colors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
 
+def ensure_output_dir():
+    """Memastikan folder output tersedia."""
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
+
 def print_banner():
     print(f"{Colors.HEADER}{Colors.BOLD}")
     print("="*60)
     print("   PENCARI BERITA PINTAR & TURBO (Smart News Fetcher)")
-    print("   (Fitur: Deduplikasi, Full Text Scraping, Parallel Processing)")
+    print("   (Fitur: Deduplikasi, Full Text, Parallel, Folder Rapih)")
     print("="*60)
     print(f"{Colors.ENDC}")
 
@@ -158,21 +164,29 @@ def search_topic(topic, region='wt-wt', max_results=50):
 
 def save_to_csv(news_list, filename):
     if not news_list: return
+    
+    ensure_output_dir()
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    
     # Tambah kolom full_text
     keys = ['title', 'source', 'formatted_date', 'url', 'body', 'full_text']
     try:
-        with open(filename, 'w', newline='', encoding='utf-8') as f:
+        with open(filepath, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=keys, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(news_list)
-        print(f"{Colors.GREEN}[SUKSES] CSV tersimpan: {filename}{Colors.ENDC}")
+        print(f"{Colors.GREEN}[SUKSES] CSV tersimpan: {filepath}{Colors.ENDC}")
     except IOError as e:
         print(f"{Colors.FAIL}[Gagal CSV] {e}{Colors.ENDC}")
 
 def save_to_markdown(news_list, filename, topic):
     if not news_list: return
+
+    ensure_output_dir()
+    filepath = os.path.join(OUTPUT_DIR, filename)
+
     try:
-        with open(filename, 'w', encoding='utf-8') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             f.write(f"# Laporan Lengkap: {topic}\n")
             f.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
             f.write(f"**Total Artikel:** {len(news_list)}\n\n---\n\n")
@@ -200,7 +214,7 @@ def save_to_markdown(news_list, filename, topic):
 
                 f.write(f"[🔗 Baca Sumber Asli]({link})\n")
                 f.write("---\n\n")
-        print(f"{Colors.GREEN}[SUKSES] Laporan Lengkap (.md) tersimpan: {Colors.BOLD}{filename}{Colors.ENDC}")
+        print(f"{Colors.GREEN}[SUKSES] Laporan Lengkap (.md) tersimpan: {Colors.BOLD}{filepath}{Colors.ENDC}")
     except IOError as e:
         print(f"{Colors.FAIL}[Gagal MD] {e}{Colors.ENDC}")
 
@@ -227,7 +241,7 @@ def interactive_mode():
             print("Tidak ada berita baru (<48 jam).")
             continue
 
-        # 3. Enrich (Download Full Text) - INI YANG BARU
+        # 3. Enrich (Download Full Text)
         final_news = enrich_news_content(filtered)
 
         # 4. Save
@@ -243,6 +257,8 @@ def main():
     parser_arg.add_argument("--indo", action="store_true", help="Fokus Indonesia")
     parser_arg.add_argument("--limit", type=int, default=50, help="Limit pencarian")
     args = parser_arg.parse_args()
+
+    ensure_output_dir() # Pastikan folder ada saat start
 
     if not args.topik:
         try: interactive_mode()
