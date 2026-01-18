@@ -1,2 +1,4 @@
 duckduckgo-search
 python-dateutil
+trafilatura
+tqdm
