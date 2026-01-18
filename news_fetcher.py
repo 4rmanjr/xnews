@@ -20,7 +20,7 @@ from pathlib import Path
 
 # Third Party Libraries
 from dateutil import parser
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 import trafilatura
 import requests
 from dotenv import load_dotenv
@@ -525,7 +525,7 @@ def search_topic(topic, region='wt-wt', max_results=50):
         try:
             with DDGS() as ddgs:
                 ddgs_gen = ddgs.news(
-                    keywords=topic, 
+                    query=topic, 
                     region=region, 
                     safesearch='off', 
                     timelimit='w', 

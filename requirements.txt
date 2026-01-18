@@ -1,5 +1,5 @@
 # Core Dependencies
-duckduckgo-search
+ddgs
 python-dateutil
 trafilatura
 tqdm
