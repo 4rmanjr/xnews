@@ -25,6 +25,7 @@ from ddgs import DDGS
 import trafilatura
 import requests
 from dotenv import load_dotenv
+import pyperclip
 
 # Rich Console
 from rich.console import Console
@@ -142,22 +143,25 @@ def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -
         
         if for_twitter:
             # Twitter-optimized prompt: short, engaging, with emojis
-            system_prompt = """Kamu adalah copywriter social media expert. Buat ringkasan berita yang:
-1. MAKSIMAL 200 karakter (sangat penting!)
-2. Menarik dan engaging seperti tweet viral
-3. Gunakan 1-2 emoji yang relevan di awal atau tengah kalimat
-4. Bahasa Indonesia yang santai tapi informatif
-5. Langsung ke poin utama, tanpa basa-basi
+            system_prompt = """Kamu adalah copywriter social media expert yang jago bikin konten viral.
 
-Contoh gaya penulisan:
-- "🚀 Tesla catat rekor penjualan! Elon Musk optimis EV bakal dominasi pasar 2026"
-- "💰 Bitcoin tembus $100K! Para analis prediksi rally masih berlanjut"
-- "🤖 ChatGPT kini bisa 'lihat' dan 'dengar' - revolusi AI makin nyata"
+TUGAS:
+Buat ringkasan berita yang HUMANIS, INTERAKTIF, dan MEMANCING KOMENTAR.
 
-INGAT: Maksimal 200 karakter!"""
+PEDOMAN:
+1. MAKSIMAL 500 karakter. Maksimalkan space ini untuk storytelling singkat yang asik!
+2. Gaya bahasa: "Twitter Style" yang luwes (tidak baku) TAPI TETAP SOPAN. Gunakan kata sapaan santai.
+3. Hindari bahasa yang terlalu kaku (baku) atau terlalu alay/kasar.
+4. Gunakan emosi yang pas (kaget, kagum, bingung, skeptis).
+5. WAJIB akhiri dengan pertanyaan yang memancing debat atau opini audiens.
+
+Contoh:
+"Gokil sih ini! 🤯 Tesla baru aja pecahin rekor penjualan lagi, padahal pasar lagi lesu. Elon Musk yakin banget EV bakal dominasi total di 2026. Menurut kalian ini realistis atau cuma marketing hype aja? Masih berani beli bensin? 👇"
+
+INGAT: Maksimal 500 karakter!"""
             
-            user_prompt = f"Buat tweet singkat dari berita ini:\n\n{truncated}"
-            max_tokens = 100
+            user_prompt = f"Buat post social media yang engaging dari berita ini:\n\n{truncated}"
+            max_tokens = 300
         else:
             # Detailed summary prompt with emojis
             system_prompt = f"""Kamu adalah jurnalis berpengalaman. Buat ringkasan berita yang:
@@ -190,9 +194,9 @@ Contoh penggunaan emoji:
         
         result = response.choices[0].message.content.strip()
         
-        # Ensure Twitter summary doesn't exceed 200 chars
-        if for_twitter and len(result) > 200:
-            result = result[:197] + "..."
+        # Ensure Twitter summary doesn't exceed 500 chars
+        if for_twitter and len(result) > 500:
+            result = result[:497] + "..."
         
         return result
     except Exception as e:
@@ -214,46 +218,45 @@ def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
         truncated = text[:2000] if len(text) > 2000 else text
         safe_topic = topic.replace(" ", "")
         
-        system_prompt = """Kamu adalah copywriter media sosial handal yang ahli membuat konten viral dan interaktif.
+        system_prompt = """Kamu adalah content creator berita terkini yang pinter merangkum.
 
 TUGAS:
-Buat ringkasan berita untuk Twitter/X dengan gaya "Bullet Point" yang estetik dan memancing interaksi.
+Buat post Twitter/X yang informatif, padat, dan rapi.
 
-STRUKTUR WAJIB:
-1. [Headline Singkat & Nendang] + [Emoji Relevan]
-2. [Baris kosong]
-3. • [Poin Kunci 1 - singkat, padat]
-4. • [Poin Kunci 2 - singkat, padat]
-5. • [Poin Kunci 3 - singkat, padat]
-6. [Baris kosong]
-7. [Pertanyaan/Opini pancingan interaksi?] [Emoji]
+STRUKTUR WAJIB (Gunakan Enter/Baris Baru antar bagian):
+[Emoji Relevan] [Headline/Judul Menarik]
+[Baris Kosong]
+[Ringkasan inti berita dalam 1-2 kalimat lengkap. Sebutkan tanggal/angka penting jika ada.]
+[Baris Kosong]
+[Satu kalimat Opini, Celetukan, atau Komentar Spekulatif yang 'ngena' ala netizen Twitter. Berikan sudut pandang yang manusiawi, sedikit berani (bold), dan tidak kaku/robotik.]
+[Baris Kosong]
+[2-3 Hashtag Relevan]
+
+CONTOH GAYA (Ikuti format ini):
+🤖 Bukan cuma buat dev: Kenalan sama Claude Cowork!
+
+Anthropic memperluas kemampuan Claude Code ke aplikasi desktop untuk otomatisasi tugas kantor sehari-hari. Mulai 16 Jan, pengguna Claude Pro sudah bisa akses.
+
+Bukannya cuma buat ngoding, sekarang malah makin asik buat beresin admin kantor yang ribet. Era baru efisiensi kerja dimulai nih, bakal kebantu banget sih!
+
+#ClaudeAI #Productivity #TechNews
 
 GAYA BAHASA:
-- Gunakan Bahasa Indonesia yang luwes, modern, dan "hidup" (tidak kaku seperti bot).
-- Headline harus memancing rasa ingin tahu ("Hook").
-- Poin-poin harus fakta utama yang paling menarik.
-- Penutup adalah pertanyaan retoris atau ajakan diskusi untuk audiens.
+- Gunakan bahasa percakapan "Twitter Style" yang LUWES (tidak kaku/baku) tapi TETAP BERKELAS & SOPAN.
+- Gunakan kata-kata yang lebih natural (contoh: 'malah', 'bukannya', 'gila sih', 'hmm', 'ironis banget', 'asik juga', 'kok bisa ya').
+- Berikan opini yang 'bold' atau celetukan spekulatif yang memicu orang buat langsung pengen nimbrung komen.
+- JANGAN menulis kalimat kaku/formal seperti "Sepertinya pemberian hadiah ini memicu kekacauan".
 
-CONTOH OUTPUT YANG DIINGINKAN:
-Grok akhirnya "tobat"! 🛡️
-
-• Fitur edit foto vulgar resmi diblokir
-• xAI tunduk pada aturan global & hukum
-• Akses gambar kini khusus user premium
-
-Langkah tepat buat jaga keamanan digital? 🧐
-
-ATURAN TAMBAHAN:
-- JANGAN pakai hashtag (akan ditambah otomatis oleh sistem).
-- JANGAN pakai tanda kutip di awal/akhir.
-- Total panjang maksimal 230 karakter (agar muat link)."""
+BATASAN:
+- Total panjang MAKSIMAL 500 karakter.
+- WAJIB sertakan 2-3 hashtag relevan di akhir."""
 
         user_prompt = f"""Judul: {title}
 
 Isi berita:
 {truncated}
 
-Buat tweet dengan struktur bullet point di atas. Pastikan menarik dan memancing diskusi!"""
+Buat post Twitter sesuai format di atas!"""
 
         response = client.chat.completions.create(
             model=GROQ_MODEL,
@@ -262,7 +265,7 @@ Buat tweet dengan struktur bullet point di atas. Pastikan menarik dan memancing 
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.7,
-            max_tokens=150  # Increased for longer tweets
+            max_tokens=350
         )
         
         tweet_text = response.choices[0].message.content.strip()
@@ -270,15 +273,11 @@ Buat tweet dengan struktur bullet point di atas. Pastikan menarik dan memancing 
         # Remove quotes if AI added them
         tweet_text = tweet_text.strip('"\'')
         
-        # Add hashtags
-        hashtags = f"\n\n#{safe_topic} #BeritaTerkini"
+        # Ensure total doesn't exceed 500
+        if len(tweet_text) > 500:
+            tweet_text = tweet_text[:497] + "..."
         
-        # Ensure total doesn't exceed 280
-        max_tweet_len = 280 - len(hashtags)
-        if len(tweet_text) > max_tweet_len:
-            tweet_text = tweet_text[:max_tweet_len-3] + "..."
-        
-        return tweet_text + hashtags
+        return tweet_text
         
     except Exception as e:
         console.print(f"[dim]AI Tweet error: {e}[/dim]")
@@ -415,6 +414,27 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
         if not extracted_text:
             extracted_text = news_item.get('body', '')
         
+        # If we have downloaded content but no title (direct URL case), try to extract metadata
+        if downloaded and news_item.get('title') == 'URL Processing...':
+            try:
+                metadata = trafilatura.bare_extraction(downloaded)
+                if metadata:
+                    if metadata.get('title'):
+                        news_item['title'] = metadata['title']
+                    if metadata.get('date'):
+                        news_item['formatted_date'] = metadata['date']
+                    if metadata.get('sitename'):
+                        news_item['source'] = metadata['sitename']
+            except Exception:
+                pass
+        
+        # Fallback: Extract title from <title> tag using regex if trafilatura failed
+        if news_item.get('title') == 'URL Processing...' and downloaded:
+             import re
+             match = re.search(r'<title>(.*?)</title>', downloaded, re.IGNORECASE)
+             if match:
+                 news_item['title'] = match.group(1).split('|')[0].strip() # Take first part before pipe
+
         news_item['full_text'] = extracted_text
         
         # Cache the result
@@ -431,6 +451,22 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
             news_item['is_translated'] = True
             text_to_process = news_item['full_text']
         
+        # If title is still placeholder (even after trans), try to generate/fix it using AI or first sentence
+        current_title = news_item.get('title', '')
+        if 'URL Processing' in current_title or 'Pemrosesan URL' in current_title:
+             # Use AI to generate title from text
+             if GROQ_API_KEY:
+                 try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    t_resp = client.chat.completions.create(
+                        model=GROQ_MODEL,
+                        messages=[{"role": "user", "content": f"Buat judul berita singkat (max 10 kata) dari teks ini:\n\n{text_to_process[:500]}"}],
+                        max_tokens=20
+                    )
+                    news_item['title'] = t_resp.choices[0].message.content.strip().strip('"')
+                 except:
+                    pass
+
         # AI Summarization
         if do_summarize and GROQ_API_KEY:
             news_item['ai_summary'] = ai_summarize(text_to_process)
@@ -648,7 +684,7 @@ def generate_tweet(title, text, topic, ai_summary=""):
         summary = "Simak informasi selengkapnya."
     
     base_len = len(emoji) + 1 + len(title) + 5 + len(hashtags)
-    remaining_chars = 280 - base_len
+    remaining_chars = 500 - base_len
     
     if len(summary) > remaining_chars:
         summary = summary[:remaining_chars-3] + "..."
@@ -776,6 +812,46 @@ def display_results_table(news_list, topic=""):
     if len(news_list) > 10:
         console.print(f"[dim]... dan {len(news_list) - 10} berita lainnya (lihat file output)[/dim]")
 
+def interactive_copy_selection(news_list):
+    """Interactive prompt to copy content to clipboard."""
+    if not news_list:
+        return
+
+    console.print("\n[bold yellow]📋 Opsi Copy:[/bold yellow]")
+    console.print("• Ketik [bold cyan]nomor urut[/bold cyan] untuk copy draft.")
+    console.print("• Tekan [bold green]Enter[/bold green] (kosong) untuk cari berita lain.")
+    
+    while True:
+        choice = console.input("\n[bold]Pilih Nomor (Enter utk Lanjut) > [/bold]").strip()
+        
+        if not choice:
+            console.print("[dim]🔄 Kembali ke menu pencarian...[/dim]")
+            break
+            
+        if not choice.isdigit():
+            console.print("[red]❌ Masukkan nomor yang valid![/red]")
+            continue
+            
+        idx = int(choice) - 1
+        if 0 <= idx < len(news_list):
+            item = news_list[idx]
+            # Prioritize AI Tweet, then AI Summary, then Full Text
+            content = item.get('ai_tweet') or item.get('ai_summary') or item.get('full_text') or ""
+            
+            if content:
+                try:
+                    pyperclip.copy(content)
+                    title_preview = item.get('title', 'No Title')[:20]
+                    console.print(f"[green]✅ Tersalin ke clipboard:[/green] {title_preview}...")
+                    console.print("[dim](Paste di Twitter/X atau medsos lain)[/dim]")
+                except Exception as e:
+                    console.print(f"[red]❌ Gagal copy: {e}[/red]")
+                    console.print("[dim]Pastikan 'xclip' atau 'xsel' terinstall di Linux.[/dim]")
+            else:
+                console.print("[yellow]⚠ Tidak ada konten untuk disalin.[/yellow]")
+        else:
+            console.print(f"[red]❌ Nomor {choice} tidak ada.[/red]")
+
 # --- Watch Mode ---
 def watch_mode(topic, region='wt-wt', interval_minutes=30, do_translate=False, do_summarize=False):
     """Continuously monitor for new news."""
@@ -831,7 +907,8 @@ def interactive_mode():
     
     while True:
         try:
-            topic = console.input("[bold]📝 Topik berita (atau 'x' untuk keluar): [/bold]").strip()
+            console.print("\n[bold cyan]─── 🔍 Pencarian Baru ───[/bold cyan]")
+            topic = console.input("[bold]📝 Masukkan Topik / Link URL (atau 'x' keluar): [/bold]").strip()
         except EOFError:
             break
         if topic.lower() == 'x':
@@ -839,8 +916,14 @@ def interactive_mode():
         if not topic:
             continue
         
-        region_input = console.input("🌍 Indonesia saja? (y/n) [default: n]: ").lower()
-        region = 'id-id' if region_input in ['y', 'yes'] else 'wt-wt'
+        # URL Check in Interactive Mode
+        is_url = topic.startswith(('http://', 'https://'))
+        
+        if is_url:
+            region = 'wt-wt' # Default for URLs
+        else:
+            region_input = console.input("🌍 Indonesia saja? (y/n) [default: n]: ").lower()
+            region = 'id-id' if region_input in ['y', 'yes'] else 'wt-wt'
         
         do_trans = False
         if region == 'wt-wt':
@@ -852,29 +935,51 @@ def interactive_mode():
             summary_input = console.input("🧠 Aktifkan AI Summary? (y/n) [default: y]: ").lower()
             do_summary = summary_input not in ['n', 'no']
         
-        # Search & Process
-        raw = search_topic(topic, region=region, max_results=20)
-        if not raw:
-            console.print("[yellow]Tidak ada hasil.[/yellow]")
-            continue
-        
-        filtered = filter_recent_news(raw, days=2)
-        if not filtered:
-            console.print("[yellow]Tidak ada berita baru (<48 jam).[/yellow]")
-            continue
+        # Search or URL Processing
+        if is_url:
+            filtered = [{
+                'url': topic,
+                'title': 'URL Processing...',
+                'source': 'Direct Link',
+                'formatted_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'body': ''
+            }]
+            actual_topic = "Direct Link"
+        else:
+            raw = search_topic(topic, region=region, max_results=20)
+            if not raw:
+                console.print("[yellow]Tidak ada hasil.[/yellow]")
+                continue
+            
+            filtered = filter_recent_news(raw, days=2)
+            if not filtered:
+                console.print("[yellow]Tidak ada berita baru (<48 jam).[/yellow]")
+                continue
+            actual_topic = topic
         
         # Enrich
-        final_news = enrich_news_content(filtered, do_translate=do_trans, do_summarize=do_summary, do_sentiment=True, topic=topic)
+        final_news = enrich_news_content(filtered, do_translate=do_trans, do_summarize=do_summary, do_sentiment=True, topic=actual_topic)
         
+        if is_url and not (final_news and final_news[0].get('full_text')):
+            console.print("[red]❌ Gagal mengekstrak konten dari URL tersebut.[/red]")
+            continue
+
         # Display
-        display_results_table(final_news, topic)
+        display_results_table(final_news, actual_topic)
+        
+        # Interactive Copy
+        interactive_copy_selection(final_news)
         
         # Save
         ts = int(time.time())
-        safe_topic = "".join([c if c.isalnum() else "_" for c in topic])
+        if is_url and final_news[0].get('title') != 'URL Processing...':
+            safe_topic = "".join([c if c.isalnum() else "_" for c in final_news[0]['title'][:30]])
+        else:
+            safe_topic = "".join([c if c.isalnum() else "_" for c in topic[:30]])
+        
         save_to_csv(final_news, f"news_{safe_topic}_{ts}.csv")
         save_to_json(final_news, f"news_{safe_topic}_{ts}.json")
-        save_to_markdown(final_news, f"Laporan_{safe_topic}_{ts}.md", topic)
+        save_to_markdown(final_news, f"Laporan_{safe_topic}_{ts}.md", final_news[0].get('title', actual_topic))
         
         console.print("\n" + "-" * 50 + "\n")
 
@@ -918,6 +1023,46 @@ Contoh Penggunaan:
         except KeyboardInterrupt:
             console.print("\n[yellow]Bye![/yellow]")
     else:
+        # Check if input is a URL
+        if args.topik.startswith(('http://', 'https://')):
+            console.print(f"\n[bold green]🔗 Mendeteksi URL langsung:[/bold green] {args.topik}")
+            
+            # Create single item list
+            filtered = [{
+                'url': args.topik,
+                'title': 'URL Processing...', # Placeholder, will be updated in fetch_single_article
+                'source': 'Direct Link',
+                'formatted_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'body': ''
+            }]
+            
+            # Force enable summary/sentiment for direct link if not specified (optional, but good UX)
+            # But let's stick to flags to be consistent, or maybe enable them by default for single link?
+            # Let's respect flags, but user usually wants to process this link.
+            
+            final_news = enrich_news_content(
+                filtered, 
+                do_translate=args.translate, 
+                do_summarize=args.summary, 
+                do_sentiment=args.sentiment,
+                topic="Direct URL"
+            )
+            
+            if final_news and final_news[0].get('full_text'):
+                # Update topic for filename based on extracted title
+                safe_topic = "Direct_Link"
+                if final_news[0].get('title') != 'URL Processing...':
+                     safe_topic = "".join([c if c.isalnum() else "_" for c in final_news[0]['title'][:30]])
+                
+                display_results_table(final_news, "Direct Link")
+                save_to_markdown(final_news, f"Laporan_{safe_topic}.md", final_news[0].get('title', 'Direct Link'))
+                if args.json:
+                    save_to_json(final_news, f"news_{safe_topic}.json")
+            else:
+                 console.print("[red]❌ Gagal mengekstrak konten dari URL tersebut.[/red]")
+            
+            return
+
         # Watch mode
         if args.watch:
             region = 'id-id' if args.indo else 'wt-wt'
@@ -941,6 +1086,13 @@ Contoh Penggunaan:
             # Display table
             display_results_table(final_news, args.topik)
             
+            # Interactive Copy
+            if not args.watch: # Don't block watch mode
+                try:
+                    interactive_copy_selection(final_news)
+                except KeyboardInterrupt:
+                    pass
+
             safe_topic = "".join([c if c.isalnum() else "_" for c in args.topik])
             save_to_csv(final_news, f"news_{safe_topic}.csv")
             save_to_markdown(final_news, f"Laporan_{safe_topic}.md", args.topik)
