@@ -101,6 +101,10 @@ if [ "$IS_TERMUX" = true ]; then
     
     # FIX: Maturin/Rust build error "Failed to determine Android API level"
     export ANDROID_API_LEVEL=24
+    
+    # FIX: "Text file busy" (os error 26) saat compile Rust (primp) di Termux
+    # Memaksa cargo berjalan single-thread untuk menghindari race condition filesystem
+    export CARGO_BUILD_JOBS=1
 fi
 
 # 1. Cek Python
