@@ -27,6 +27,13 @@ import requests
 from dotenv import load_dotenv
 import pyperclip
 
+# YAML Support for Prompts
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+
 # Rich Console
 from rich.console import Console
 from rich.table import Table
@@ -63,6 +70,7 @@ TIMEOUT_SECONDS = 15
 OUTPUT_DIR = "reports"
 CACHE_DIR = ".cache"
 CACHE_TTL_HOURS = 1
+PROMPT_FILE = "prompts.yaml"
 
 # Groq Configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -74,6 +82,42 @@ logging.getLogger('trafilatura').setLevel(logging.WARNING)
 
 # Rich Console Instance
 console = Console()
+
+# --- Prompt Loader ---
+class PromptLoader:
+    """Handles loading and formatting of prompts from YAML file."""
+    
+    def __init__(self, filepath=PROMPT_FILE):
+        self.filepath = filepath
+        self.prompts = self._load_prompts()
+
+    def _load_prompts(self):
+        if not YAML_AVAILABLE:
+            # console.print("[dim]PyYAML not installed. Using internal defaults (if any).[/dim]")
+            return {}
+        
+        if not os.path.exists(self.filepath):
+            console.print(f"[yellow]Warning: {self.filepath} not found. Using internal defaults.[/yellow]")
+            return {}
+            
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            console.print(f"[red]Error loading prompts: {e}[/red]")
+            return {}
+
+    def get(self, *keys, default=None):
+        """Deep get for nested dictionary."""
+        val = self.prompts
+        for key in keys:
+            if isinstance(val, dict):
+                val = val.get(key)
+            else:
+                return default
+        return val if val is not None else default
+
+prompt_loader = PromptLoader()
 
 # --- Cache Manager ---
 class CacheManager:
@@ -142,44 +186,22 @@ def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -
         truncated = text[:4000] if len(text) > 4000 else text
         
         if for_twitter:
-            # Twitter-optimized prompt: short, engaging, with emojis
-            system_prompt = """Kamu adalah copywriter social media expert yang jago bikin konten viral.
-
-TUGAS:
-Buat ringkasan berita yang HUMANIS, INTERAKTIF, dan MEMANCING KOMENTAR.
-
-PEDOMAN:
-1. MAKSIMAL 500 karakter. Maksimalkan space ini untuk storytelling singkat yang asik!
-2. Gaya bahasa: "Twitter Style" yang luwes (tidak baku) TAPI TETAP SOPAN. Gunakan kata sapaan santai.
-3. Hindari bahasa yang terlalu kaku (baku) atau terlalu alay/kasar.
-4. Gunakan emosi yang pas (kaget, kagum, bingung, skeptis).
-5. WAJIB akhiri dengan pertanyaan yang memancing debat atau opini audiens.
-
-Contoh:
-"Gokil sih ini! 🤯 Tesla baru aja pecahin rekor penjualan lagi, padahal pasar lagi lesu. Elon Musk yakin banget EV bakal dominasi total di 2026. Menurut kalian ini realistis atau cuma marketing hype aja? Masih berani beli bensin? 👇"
-
-INGAT: Maksimal 500 karakter!"""
-            
-            user_prompt = f"Buat post social media yang engaging dari berita ini:\n\n{truncated}"
+            # Load from YAML
+            system_prompt = prompt_loader.get('summary', 'twitter', 'system', default="You are a social media expert.")
+            user_prompt_tpl = prompt_loader.get('summary', 'twitter', 'user', default="Summarize this:\n\n{text}")
+            user_prompt = user_prompt_tpl.format(text=truncated)
             max_tokens = 300
         else:
-            # Detailed summary prompt with emojis
-            system_prompt = f"""Kamu adalah jurnalis berpengalaman. Buat ringkasan berita yang:
-1. Terdiri dari {max_sentences} kalimat informatif
-2. Gunakan 2-3 emoji yang relevan untuk mempercantik (di awal paragraf atau poin penting)
-3. Bahasa Indonesia yang jelas dan profesional
-4. Langsung tulis ringkasannya tanpa awalan seperti "Berikut ringkasannya:"
-
-Contoh penggunaan emoji:
-- 🚀 untuk teknologi/startup/inovasi
-- 💰 untuk bisnis/ekonomi/keuangan
-- 🏥 untuk kesehatan
-- ⚖️ untuk hukum/politik
-- 🌍 untuk isu global/lingkungan
-- 📈 untuk pertumbuhan/statistik
-- ⚠️ untuk peringatan/masalah"""
-            
-            user_prompt = f"Ringkaskan berita berikut:\n\n{truncated}"
+            # Load from YAML
+            system_prompt_tpl = prompt_loader.get('summary', 'standard', 'system', default="Summarize in {max_sentences} sentences.")
+            # Handle potential formatting in system prompt if it exists
+            try:
+                system_prompt = system_prompt_tpl.format(max_sentences=max_sentences)
+            except:
+                system_prompt = system_prompt_tpl
+                
+            user_prompt_tpl = prompt_loader.get('summary', 'standard', 'user', default="Summarize:\n\n{text}")
+            user_prompt = user_prompt_tpl.format(text=truncated)
             max_tokens = 300
         
         response = client.chat.completions.create(
@@ -216,47 +238,12 @@ def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
         client = Groq(api_key=GROQ_API_KEY)
         
         truncated = text[:2000] if len(text) > 2000 else text
-        safe_topic = topic.replace(" ", "")
         
-        system_prompt = """Kamu adalah content creator berita terkini yang pinter merangkum.
-
-TUGAS:
-Buat post Twitter/X yang informatif, padat, dan rapi.
-
-STRUKTUR WAJIB (Gunakan Enter/Baris Baru antar bagian):
-[Emoji Relevan] [Headline/Judul Menarik]
-[Baris Kosong]
-[Ringkasan inti berita dalam 1-2 kalimat lengkap. Sebutkan tanggal/angka penting jika ada.]
-[Baris Kosong]
-[Satu kalimat Opini, Celetukan, atau Komentar Spekulatif yang 'ngena' ala netizen Twitter. Berikan sudut pandang yang manusiawi, sedikit berani (bold), dan tidak kaku/robotik.]
-[Baris Kosong]
-[2-3 Hashtag Relevan]
-
-CONTOH GAYA (Ikuti format ini):
-🤖 Bukan cuma buat dev: Kenalan sama Claude Cowork!
-
-Anthropic memperluas kemampuan Claude Code ke aplikasi desktop untuk otomatisasi tugas kantor sehari-hari. Mulai 16 Jan, pengguna Claude Pro sudah bisa akses.
-
-Bukannya cuma buat ngoding, sekarang malah makin asik buat beresin admin kantor yang ribet. Era baru efisiensi kerja dimulai nih, bakal kebantu banget sih!
-
-#ClaudeAI #Productivity #TechNews
-
-GAYA BAHASA:
-- Gunakan bahasa percakapan "Twitter Style" yang LUWES (tidak kaku/baku) tapi TETAP BERKELAS & SOPAN.
-- Gunakan kata-kata yang lebih natural (contoh: 'malah', 'bukannya', 'gila sih', 'hmm', 'ironis banget', 'asik juga', 'kok bisa ya').
-- Berikan opini yang 'bold' atau celetukan spekulatif yang memicu orang buat langsung pengen nimbrung komen.
-- JANGAN menulis kalimat kaku/formal seperti "Sepertinya pemberian hadiah ini memicu kekacauan".
-
-BATASAN:
-- Total panjang MAKSIMAL 500 karakter.
-- WAJIB sertakan 2-3 hashtag relevan di akhir."""
-
-        user_prompt = f"""Judul: {title}
-
-Isi berita:
-{truncated}
-
-Buat post Twitter sesuai format di atas!"""
+        # Load from YAML
+        system_prompt = prompt_loader.get('tweet_generation', 'system', default="You are a twitter expert.")
+        user_prompt_tpl = prompt_loader.get('tweet_generation', 'user', default="Title: {title}\nText: {text}")
+        
+        user_prompt = user_prompt_tpl.format(title=title, text=truncated)
 
         response = client.chat.completions.create(
             model=GROQ_MODEL,
@@ -458,9 +445,12 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
              if GROQ_API_KEY:
                  try:
                     client = Groq(api_key=GROQ_API_KEY)
+                    user_prompt_tpl = prompt_loader.get('title_generation', 'user', default="Create title from:\n\n{text}")
+                    user_prompt = user_prompt_tpl.format(text=text_to_process[:500])
+                    
                     t_resp = client.chat.completions.create(
                         model=GROQ_MODEL,
-                        messages=[{"role": "user", "content": f"Buat judul berita singkat (max 10 kata) dari teks ini:\n\n{text_to_process[:500]}"}],
+                        messages=[{"role": "user", "content": user_prompt}],
                         max_tokens=20
                     )
                     news_item['title'] = t_resp.choices[0].message.content.strip().strip('"')
@@ -598,11 +588,19 @@ def search_topic(topic, region='wt-wt', max_results=50):
     return results
 
 # --- Save Functions ---
+def get_dated_output_path(filename):
+    """Generate path with date-based subdirectory structure."""
+    today = datetime.now().strftime('%Y-%m-%d')
+    target_dir = os.path.join(OUTPUT_DIR, today)
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
+    return os.path.join(target_dir, filename)
+
 def save_to_csv(news_list, filename):
     if not news_list:
         return
     ensure_output_dir()
-    filepath = os.path.join(OUTPUT_DIR, filename)
+    filepath = get_dated_output_path(filename)
     keys = ['title', 'source', 'formatted_date', 'url', 'body', 'full_text', 'ai_summary', 'sentiment', 'is_translated']
     try:
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
@@ -620,7 +618,7 @@ def save_to_json(news_list, filename):
     if not news_list:
         return
     ensure_output_dir()
-    filepath = os.path.join(OUTPUT_DIR, filename)
+    filepath = get_dated_output_path(filename)
     
     # Clean data for JSON
     export_data = []
@@ -696,7 +694,7 @@ def save_to_markdown(news_list, filename, topic):
     if not news_list:
         return
     ensure_output_dir()
-    filepath = os.path.join(OUTPUT_DIR, filename)
+    filepath = get_dated_output_path(filename)
     
     try:
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -902,6 +900,10 @@ def interactive_mode():
         status_items.append("[red]✗ Groq AI (no API key)[/red]")
     if TEXTBLOB_AVAILABLE:
         status_items.append("[green]✓ Sentiment[/green]")
+    if YAML_AVAILABLE:
+        status_items.append("[green]✓ Custom Prompts[/green]")
+    else:
+        status_items.append("[yellow]⚠ Default Prompts (no yaml)[/yellow]")
     
     console.print(f"Status: {' | '.join(status_items)}\n")
     
@@ -939,7 +941,7 @@ def interactive_mode():
         if is_url:
             filtered = [{
                 'url': topic,
-                'title': 'URL Processing...',
+                'title': 'URL Processing...', # Placeholder, will be updated in fetch_single_article
                 'source': 'Direct Link',
                 'formatted_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'body': ''
@@ -1038,7 +1040,7 @@ Contoh Penggunaan:
             
             # Force enable summary/sentiment for direct link if not specified (optional, but good UX)
             # But let's stick to flags to be consistent, or maybe enable them by default for single link?
-            # Let's respect flags, but user usually wants to process this link.
+            # Let's respect flags, but user usually wants to process this link. 
             
             final_news = enrich_news_content(
                 filtered, 
@@ -1078,7 +1080,7 @@ Contoh Penggunaan:
             final_news = enrich_news_content(
                 filtered, 
                 do_translate=args.translate, 
-                do_summarize=args.summary,
+                do_summarize=args.summary, 
                 do_sentiment=args.sentiment,
                 topic=args.topik
             )

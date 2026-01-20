@@ -5,6 +5,7 @@ trafilatura
 tqdm
 deep-translator
 requests
+PyYAML
 
 # AI & Analysis
 groq
