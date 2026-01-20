@@ -78,6 +78,7 @@ if [ "$IS_TERMUX" = true ]; then
     # Rust Compiler (Wajib untuk ddgs/primp & groq/pydantic)
     if ! command -v rustc &> /dev/null; then MISSING_PKG+=("rust"); fi
     if ! command -v strip &> /dev/null; then MISSING_PKG+=("binutils"); fi
+    if ! command -v pkg-config &> /dev/null; then MISSING_PKG+=("pkg-config"); fi
     
     # Cek library untuk lxml (dibutuhkan trafilatura) & crypto
     if ! dpkg -s libxml2 &> /dev/null; then MISSING_PKG+=("libxml2"); fi
@@ -94,9 +95,8 @@ if [ "$IS_TERMUX" = true ]; then
     # Cek Termux API untuk clipboard
     if ! command -v termux-clipboard-get &> /dev/null; then
         print_warning "⚠️  termux-api belum terinstall."
-        echo -e "   Fitur copy-paste otomatis mungkin tidak jalan."
-        echo -e "   Saran: pkg install termux-api"
-        # Optional: pkg install termux-api -y
+        echo -e "   Menginstall termux-api otomatis untuk fitur clipboard..."
+        pkg install termux-api -y
     fi
     
     # FIX: Maturin/Rust build error "Failed to determine Android API level"

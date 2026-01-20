@@ -16,6 +16,8 @@ import warnings
 import logging
 import urllib.parse
 from datetime import datetime, timedelta
+import shutil
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -875,13 +877,23 @@ def interactive_copy_selection(news_list):
             
             if content:
                 try:
-                    pyperclip.copy(content)
+                    # Check for Termux Clipboard
+                    if shutil.which("termux-clipboard-set"):
+                        subprocess.run(
+                            ["termux-clipboard-set", content], 
+                            check=True
+                        )
+                        clipboard_method = "Termux API"
+                    else:
+                        pyperclip.copy(content)
+                        clipboard_method = "System Clipboard"
+                        
                     title_preview = item.get('title', 'No Title')[:20]
-                    console.print(f"[green]✅ Tersalin ke clipboard:[/green] {title_preview}...")
+                    console.print(f"[green]✅ Tersalin ({clipboard_method}):[/green] {title_preview}...")
                     console.print("[dim](Paste di Twitter/X atau medsos lain)[/dim]")
                 except Exception as e:
                     console.print(f"[red]❌ Gagal copy: {e}[/red]")
-                    console.print("[dim]Pastikan 'xclip' atau 'xsel' terinstall di Linux.[/dim]")
+                    console.print("[dim]Di Linux pastikan xclip/xsel ada. Di Termux install termux-api.[/dim]")
             else:
                 console.print("[yellow]⚠ Tidak ada konten untuk disalin.[/yellow]")
         else:
