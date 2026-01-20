@@ -11,6 +11,12 @@ REQ_FILE="$DIR/requirements.txt"
 SCRIPT="$DIR/news_fetcher.py"
 INSTALLED_MARKER="$VENV_DIR/.deps_installed"
 
+# Deteksi Termux
+IS_TERMUX=false
+if [ -n "$TERMUX_VERSION" ] || [[ "$PREFIX" == *"/com.termux/"* ]]; then
+    IS_TERMUX=true
+fi
+
 # Warna
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -59,6 +65,35 @@ echo -e "${BOLD}${CYAN}║     🚀 XNEWS - Smart News Fetcher Launcher         
 echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+# 0. Cek Termux Dependencies
+if [ "$IS_TERMUX" = true ]; then
+    print_step "📱 Mendeteksi lingkungan Termux..."
+    
+    MISSING_PKG=()
+    
+    # Cek package penting untuk build dependencies (lxml, numpy dll sering butuh ini)
+    if ! command -v clang &> /dev/null; then MISSING_PKG+=("clang"); fi
+    if ! command -v make &> /dev/null; then MISSING_PKG+=("make"); fi
+    
+    # Cek library untuk lxml (dibutuhkan trafilatura)
+    if ! dpkg -s libxml2 &> /dev/null; then MISSING_PKG+=("libxml2"); fi
+    if ! dpkg -s libxslt &> /dev/null; then MISSING_PKG+=("libxslt"); fi
+    
+    if [ ${#MISSING_PKG[@]} -gt 0 ]; then
+        print_warning "⚠️  Beberapa paket sistem Termux belum terinstall: ${MISSING_PKG[*]}"
+        echo -e "   Menginstall otomatis..."
+        pkg update -y && pkg install -y "${MISSING_PKG[@]}" python
+    fi
+
+    # Cek Termux API untuk clipboard
+    if ! command -v termux-clipboard-get &> /dev/null; then
+        print_warning "⚠️  termux-api belum terinstall."
+        echo -e "   Fitur copy-paste otomatis mungkin tidak jalan."
+        echo -e "   Saran: pkg install termux-api"
+        # Optional: pkg install termux-api -y
+    fi
+fi
+
 # 1. Cek Python
 print_step "🔍 Memeriksa Python..."
 if ! command -v python3 &> /dev/null; then
@@ -67,6 +102,7 @@ if ! command -v python3 &> /dev/null; then
     echo -e "   ${CYAN}• Ubuntu/Debian: sudo apt install python3 python3-venv${NC}"
     echo -e "   ${CYAN}• Fedora: sudo dnf install python3${NC}"
     echo -e "   ${CYAN}• macOS: brew install python3${NC}"
+    echo -e "   ${CYAN}• Termux: pkg install python${NC}"
     exit 1
 fi
 
@@ -127,6 +163,9 @@ if [ "$NEED_INSTALL" = true ]; then
     echo ""
     print_step "📥 Menginstall dependencies..."
     echo -e "   ${CYAN}Mohon tunggu, proses ini mungkin memerlukan waktu beberapa saat.${NC}"
+    if [ "$IS_TERMUX" = true ]; then
+        echo -e "   ${YELLOW}Di Termux, kompilasi lxml mungkin memakan waktu lama. Harap sabar.${NC}"
+    fi
     echo ""
     
     # Update pip terlebih dahulu (quietly)
@@ -155,6 +194,7 @@ if [ "$NEED_INSTALL" = true ]; then
         else
             echo ""
             print_warning "   ⚠️  Gagal install $package, mencoba lagi..."
+            # Di Termux, lxml butuh flags khusus kadang-kadang, tapi biasanya pkg install libxml2 libxslt sudah cukup
             pip install "$package" 2>&1 | tail -1
         fi
         
