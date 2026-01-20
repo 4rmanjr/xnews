@@ -31,6 +31,18 @@ print_step() {
     echo -e "${BLUE}$1${NC}"
 }
 
+# --- Trap Handler untuk Ctrl+C ---
+cleanup() {
+    echo ""
+    echo -e "${YELLOW}🛑 Aplikasi dihentikan pengguna.${NC}"
+    # Non-aktifkan venv jika aktif
+    if [[ "$VIRTUAL_ENV" != "" ]]; then
+        deactivate 2>/dev/null
+    fi
+    exit 130
+}
+trap cleanup SIGINT
+
 print_success() {
     echo -e "${GREEN}$1${NC}"
 }
