@@ -74,6 +74,7 @@ if [ "$IS_TERMUX" = true ]; then
     # Cek package penting untuk build dependencies (lxml, numpy dll sering butuh ini)
     if ! command -v clang &> /dev/null; then MISSING_PKG+=("clang"); fi
     if ! command -v make &> /dev/null; then MISSING_PKG+=("make"); fi
+    if ! command -v cmake &> /dev/null; then MISSING_PKG+=("cmake"); fi
     # Rust Compiler (Wajib untuk ddgs/primp & groq/pydantic)
     if ! command -v rustc &> /dev/null; then MISSING_PKG+=("rust"); fi
     if ! command -v strip &> /dev/null; then MISSING_PKG+=("binutils"); fi
