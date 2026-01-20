@@ -15,6 +15,7 @@ import hashlib
 import warnings
 import logging
 import urllib.parse
+import re
 from datetime import datetime, timedelta
 import shutil
 import subprocess
@@ -136,7 +137,7 @@ class CacheManager:
         self.cache_dir.mkdir(exist_ok=True)
     
     def _get_hash(self, key: str) -> str:
-        return hashlib.md5(key.encode()).hexdigest()
+        return hashlib.sha256(key.encode()).hexdigest()
     
     def get(self, key: str):
         cache_file = self.cache_dir / f"{self._get_hash(key)}.json"
@@ -368,7 +369,7 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
     news_item['ai_tweet'] = ""
     news_item['sentiment'] = {"label": "Unknown", "score": 0.0, "emoji": "❓"}
     
-    if not url:
+    if not url or not url.startswith(('http://', 'https://')):
         return news_item
     
     # Check cache first
@@ -403,11 +404,14 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
         # --- LAYER 2: Requests Library (Better Headers) ---
         if not extracted_text or len(extracted_text) < 200:
             try:
-                # Verify=False to bypass some strict SSL issues on old sites
-                response = requests.get(url, headers=headers, timeout=TIMEOUT_SECONDS, verify=False)
+                # SSL verification is enabled for security
+                response = requests.get(url, headers=headers, timeout=TIMEOUT_SECONDS, verify=True)
                 if response.status_code == 200:
                     raw_html = response.text
                     extracted_text = trafilatura.extract(raw_html, include_comments=False, include_tables=False)
+            except requests.exceptions.SSLError:
+                # Log SSL error but continue to Layer 3 (cURL) which might handle it differently
+                console.print(f"[dim]SSL Verify error for {url}. Switching to Layer 3 fallback.[/dim]")
             except Exception:
                 pass
 
@@ -624,7 +628,10 @@ def search_topic(topic, region='wt-wt', max_results=50):
 
 # --- Save Functions ---
 def get_dated_output_path(filename):
-    """Generate path with date-based subdirectory structure."""
+    """Generate path with date-based subdirectory structure and sanitized filename."""
+    # Sanitize filename to prevent path traversal
+    filename = re.sub(r'[^\w\.-]', '_', os.path.basename(filename))
+    
     today = datetime.now().strftime('%Y-%m-%d')
     target_dir = os.path.join(OUTPUT_DIR, today)
     if not os.path.exists(target_dir):

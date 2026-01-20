@@ -142,20 +142,21 @@ if [ "$IS_TERMUX" = false ] && [[ "$OSTYPE" == "linux-gnu"* ]]; then
         print_warning "⚠️  Paket '$MISSING_SYS_PKG' belum terinstall (diperlukan untuk fitur copy-paste)."
         
         # Deteksi Package Manager
+        INSTALL_ARGS=()
         if command -v apt-get &> /dev/null; then
-            INSTALL_CMD="sudo apt-get install -y $MISSING_SYS_PKG"
+            INSTALL_ARGS=(sudo apt-get install -y "$MISSING_SYS_PKG")
         elif command -v dnf &> /dev/null; then
-            INSTALL_CMD="sudo dnf install -y $MISSING_SYS_PKG"
+            INSTALL_ARGS=(sudo dnf install -y "$MISSING_SYS_PKG")
         elif command -v pacman &> /dev/null; then
-            INSTALL_CMD="sudo pacman -S --noconfirm $MISSING_SYS_PKG"
+            INSTALL_ARGS=(sudo pacman -S --noconfirm "$MISSING_SYS_PKG")
         fi
 
-        if [ -n "$INSTALL_CMD" ]; then
+        if [ ${#INSTALL_ARGS[@]} -gt 0 ]; then
             echo -e "   Apakah Anda ingin menginstallnya otomatis? (y/n)"
             read -r -p "   > " response
             if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-                print_step "   📥 Menjalankan: $INSTALL_CMD"
-                eval "$INSTALL_CMD"
+                print_step "   📥 Menjalankan: ${INSTALL_ARGS[*]}"
+                "${INSTALL_ARGS[@]}"
                 if [ $? -eq 0 ]; then
                     print_success "✅ Berhasil menginstall $MISSING_SYS_PKG"
                 else
@@ -209,9 +210,12 @@ if [ ! -d "$VENV_DIR" ]; then
             # Download and install pip manually
             source "$VENV_DIR/bin/activate"
             print_step "   📥 Mengunduh pip..."
-            curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
-            python /tmp/get-pip.py --quiet 2>&1
-            rm -f /tmp/get-pip.py
+            
+            TEMP_PIP=$(mktemp)
+            curl -sSL https://bootstrap.pypa.io/get-pip.py -o "$TEMP_PIP"
+            python "$TEMP_PIP" --quiet 2>&1
+            rm -f "$TEMP_PIP"
+            
             deactivate
             print_success "✅ Virtual environment berhasil dibuat (fallback mode)"
         else
