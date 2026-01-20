@@ -74,10 +74,15 @@ if [ "$IS_TERMUX" = true ]; then
     # Cek package penting untuk build dependencies (lxml, numpy dll sering butuh ini)
     if ! command -v clang &> /dev/null; then MISSING_PKG+=("clang"); fi
     if ! command -v make &> /dev/null; then MISSING_PKG+=("make"); fi
+    # Rust Compiler (Wajib untuk ddgs/primp & groq/pydantic)
+    if ! command -v rustc &> /dev/null; then MISSING_PKG+=("rust"); fi
+    if ! command -v strip &> /dev/null; then MISSING_PKG+=("binutils"); fi
     
-    # Cek library untuk lxml (dibutuhkan trafilatura)
+    # Cek library untuk lxml (dibutuhkan trafilatura) & crypto
     if ! dpkg -s libxml2 &> /dev/null; then MISSING_PKG+=("libxml2"); fi
     if ! dpkg -s libxslt &> /dev/null; then MISSING_PKG+=("libxslt"); fi
+    if ! dpkg -s libffi &> /dev/null; then MISSING_PKG+=("libffi"); fi
+    if ! dpkg -s openssl &> /dev/null; then MISSING_PKG+=("openssl"); fi
     
     if [ ${#MISSING_PKG[@]} -gt 0 ]; then
         print_warning "⚠️  Beberapa paket sistem Termux belum terinstall: ${MISSING_PKG[*]}"
