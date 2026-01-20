@@ -218,9 +218,9 @@ def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -
         
         result = response.choices[0].message.content.strip()
         
-        # Ensure Twitter summary doesn't exceed 500 chars
-        if for_twitter and len(result) > 500:
-            result = result[:497] + "..."
+        # Ensure Twitter summary doesn't exceed 750 chars
+        if for_twitter and len(result) > 750:
+            result = result[:747] + "..."
         
         return result
     except Exception as e:
@@ -262,9 +262,9 @@ def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
         # Remove quotes and markdown formatting (bold/italic)
         tweet_text = tweet_text.strip('"\'').replace('**', '').replace('__', '')
         
-        # Ensure total doesn't exceed 500
-        if len(tweet_text) > 500:
-            tweet_text = tweet_text[:497] + "..."
+        # Ensure total doesn't exceed 750
+        if len(tweet_text) > 750:
+            tweet_text = tweet_text[:747] + "..."
         
         return tweet_text
         
@@ -721,7 +721,7 @@ def generate_tweet(title, text, topic, ai_summary=""):
         summary = "Simak informasi selengkapnya."
     
     base_len = len(emoji) + 1 + len(title) + 5 + len(hashtags)
-    remaining_chars = 500 - base_len
+    remaining_chars = 750 - base_len
     
     if len(summary) > remaining_chars:
         summary = summary[:remaining_chars-3] + "..."
