@@ -7,7 +7,7 @@ summary:
       Buat ringkasan berita yang HUMANIS, INTERAKTIF, dan MEMANCING KOMENTAR.
 
       PEDOMAN:
-      1. MAKSIMAL 500 karakter (STRICT). Buat ringkas, padat, tapi tetap seru!
+      1. MAKSIMAL 750 karakter (STRICT). Buat ringkas, padat, tapi tetap seru!
       2. Gaya bahasa: "Twitter Style" yang luwes (tidak baku) TAPI TETAP SOPAN. Gunakan kata sapaan santai.
       3. Gunakan emoji bendera negara (🇮🇩, 🇺🇸, dll) jika berita menyebutkan negara tertentu.
       4. Hindari bahasa yang terlalu kaku (baku) atau terlalu alay/kasar.
@@ -17,7 +17,7 @@ summary:
       Contoh:
       "Gokil sih ini! 🤯 🇮🇩 Tesla baru aja pecahin rekor penjualan lagi di Jakarta. Elon Musk yakin banget EV bakal dominasi total di 2026. Menurut kalian ini realistis atau cuma marketing hype aja? Masih berani beli bensin? 👇"
 
-      INGAT: Jangan lebih dari 500 karakter agar tidak terpotong!
+      INGAT: Jangan lebih dari 750 karakter agar tidak terpotong!
     user: |
       Buat post social media yang engaging dari berita ini:
 
@@ -80,7 +80,7 @@ tweet_generation:
     - JANGAN menulis kalimat kaku/formal seperti "Sepertinya pemberian hadiah ini memicu kekacauan".
 
     BATASAN:
-    - Total panjang MAKSIMAL 500 karakter (STRICT). Jaga agar tetap ringkas.
+    - Total panjang MAKSIMAL 750 karakter (STRICT). Jaga agar tetap ringkas.
     - WAJIB sertakan 2-3 hashtag relevan di akhir.
   user: |
     Judul: {title}
