@@ -24,7 +24,7 @@ git clone git@github.com:4rmanjr/xnews.git
 cd xnews
 cp .env.example .env
 # Edit .env dan masukkan GROQ_API_KEY Anda
-./jalankan.sh
+./xnews.sh
 ```
 
 ### Dapatkan Groq API Key (Gratis)
@@ -34,7 +34,7 @@ cp .env.example .env
 
 ### Jalankan Secara Global
 ```bash
-alias xnews='/path/to/xnews/jalankan.sh'
+alias xnews='/path/to/xnews/xnews.sh'
 ```
 
 ## 📖 Panduan Penggunaan
@@ -91,7 +91,7 @@ xnews/
 ├── .cache/           # Cache artikel (auto-generated)
 ├── .env              # Groq API Key (jangan commit!)
 ├── .env.example      # Template environment
-├── jalankan.sh       # Launcher otomatis
+├── xnews.sh       # Launcher otomatis
 ├── news_fetcher.py   # Mesin utama v2.0
 ├── requirements.txt  # Dependencies (9 library)
 └── README.md         # Panduan ini
