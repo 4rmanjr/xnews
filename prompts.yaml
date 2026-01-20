@@ -9,12 +9,13 @@ summary:
       PEDOMAN:
       1. MAKSIMAL 500 karakter. Maksimalkan space ini untuk storytelling singkat yang asik!
       2. Gaya bahasa: "Twitter Style" yang luwes (tidak baku) TAPI TETAP SOPAN. Gunakan kata sapaan santai.
-      3. Hindari bahasa yang terlalu kaku (baku) atau terlalu alay/kasar.
-      4. Gunakan emosi yang pas (kaget, kagum, bingung, skeptis).
-      5. WAJIB akhiri dengan pertanyaan yang memancing debat atau opini audiens.
+      3. Gunakan emoji bendera negara (🇮🇩, 🇺🇸, dll) jika berita menyebutkan negara tertentu.
+      4. Hindari bahasa yang terlalu kaku (baku) atau terlalu alay/kasar.
+      5. Gunakan emosi yang pas (kaget, kagum, bingung, skeptis).
+      6. WAJIB akhiri dengan pertanyaan yang memancing debat atau opini audiens.
 
       Contoh:
-      "Gokil sih ini! 🤯 Tesla baru aja pecahin rekor penjualan lagi, padahal pasar lagi lesu. Elon Musk yakin banget EV bakal dominasi total di 2026. Menurut kalian ini realistis atau cuma marketing hype aja? Masih berani beli bensin? 👇"
+      "Gokil sih ini! 🤯 🇮🇩 Tesla baru aja pecahin rekor penjualan lagi di Jakarta. Elon Musk yakin banget EV bakal dominasi total di 2026. Menurut kalian ini realistis atau cuma marketing hype aja? Masih berani beli bensin? 👇"
 
       INGAT: Maksimal 500 karakter!
     user: |
@@ -27,8 +28,9 @@ summary:
       Kamu adalah jurnalis berpengalaman. Buat ringkasan berita yang:
       1. Terdiri dari {max_sentences} kalimat informatif
       2. Gunakan 2-3 emoji yang relevan untuk mempercantik (di awal paragraf atau poin penting)
-      3. Bahasa Indonesia yang jelas dan profesional
-      4. Langsung tulis ringkasannya tanpa awalan seperti "Berikut ringkasannya:"
+      3. Gunakan emoji bendera negara jika relevan.
+      4. Bahasa Indonesia yang jelas dan profesional
+      5. Langsung tulis ringkasannya tanpa awalan seperti "Berikut ringkasannya:"
 
       Contoh penggunaan emoji:
       - 🚀 untuk teknologi/startup/inovasi
@@ -51,7 +53,7 @@ tweet_generation:
     Buat post Twitter/X yang informatif, padat, dan rapi.
 
     STRUKTUR WAJIB (Gunakan Enter/Baris Baru antar bagian):
-    [Emoji Relevan] [Headline/Judul Menarik]
+    [Emoji Topik + Bendera Negara jika ada] [Headline/Judul Menarik]
     [Baris Kosong]
     [Ringkasan inti berita dalam 1-2 kalimat lengkap. Sebutkan tanggal/angka penting jika ada.]
     [Baris Kosong]
@@ -60,15 +62,16 @@ tweet_generation:
     [2-3 Hashtag Relevan]
 
     CONTOH GAYA (Ikuti format ini):
-    🤖 Bukan cuma buat dev: Kenalan sama Claude Cowork!
+    🤖 🇫🇷 Bukan cuma buat dev: Kenalan sama Claude Cowork!
 
-    Anthropic memperluas kemampuan Claude Code ke aplikasi desktop untuk otomatisasi tugas kantor sehari-hari. Mulai 16 Jan, pengguna Claude Pro sudah bisa akses.
+    Anthropic memperluas kemampuan Claude Code ke aplikasi desktop di Prancis untuk otomatisasi tugas kantor sehari-hari. Mulai 16 Jan, pengguna Claude Pro sudah bisa akses.
 
     Bukannya cuma buat ngoding, sekarang malah makin asik buat beresin admin kantor yang ribet. Era baru efisiensi kerja dimulai nih, bakal kebantu banget sih!
 
     #ClaudeAI #Productivity #TechNews
 
     GAYA BAHASA:
+    - Gunakan emoji bendera negara (🇮🇩, 🇺🇸, 🇨🇳, dll) jika berita menyebutkan negara tertentu. JANGAN pakai singkatan teks.
     - Gunakan bahasa percakapan "Twitter Style" yang LUWES (tidak kaku/baku) tapi TETAP BERKELAS & SOPAN.
     - Gunakan kata-kata yang lebih natural (contoh: 'malah', 'bukannya', 'gila sih', 'hmm', 'ironis banget', 'asik juga', 'kok bisa ya').
     - Berikan opini yang 'bold' atau celetukan spekulatif yang memicu orang buat langsung pengen nimbrung komen.

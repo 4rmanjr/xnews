@@ -257,8 +257,8 @@ def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
         
         tweet_text = response.choices[0].message.content.strip()
         
-        # Remove quotes if AI added them
-        tweet_text = tweet_text.strip('"\'')
+        # Remove quotes and markdown formatting (bold/italic)
+        tweet_text = tweet_text.strip('"\'').replace('**', '').replace('__', '')
         
         # Ensure total doesn't exceed 500
         if len(tweet_text) > 500:
@@ -647,19 +647,56 @@ def save_to_json(news_list, filename):
         console.print(f"[red]❌ Gagal JSON: {e}[/red]")
 
 def get_relevant_emoji(text):
-    """Select emoji based on keywords."""
+    """Select emoji based on topic and country keywords."""
     text = text.lower()
+    emojis = []
+
+    # 1. Topic Emoji (Primary)
+    topic_icon = "📢"
     if any(k in text for k in ['ai', 'tech', 'robot', 'data', 'cyber', 'app', 'soft', 'hard']):
-        return "🤖"
-    if any(k in text for k in ['saham', 'uang', 'bisnis', 'ekonomi', 'market', 'stock', 'profit', 'crypto', 'bitcoin', 'btc', 'invest']):
-        return "💰"
-    if any(k in text for k in ['sehat', 'dokter', 'virus', 'obat', 'medis']):
-        return "🏥"
-    if any(k in text for k in ['game', 'play', 'esport']):
-        return "🎮"
-    if any(k in text for k in ['politik', 'presiden', 'hukum', 'negara']):
-        return "⚖️"
-    return "📢"
+        topic_icon = "🤖"
+    elif any(k in text for k in ['saham', 'uang', 'bisnis', 'ekonomi', 'market', 'stock', 'profit', 'crypto', 'bitcoin', 'btc', 'invest']):
+        topic_icon = "💰"
+    elif any(k in text for k in ['sehat', 'dokter', 'virus', 'obat', 'medis']):
+        topic_icon = "🏥"
+    elif any(k in text for k in ['game', 'play', 'esport']):
+        topic_icon = "🎮"
+    elif any(k in text for k in ['politik', 'presiden', 'hukum', 'negara', 'dpr', 'mpr', 'partai']):
+        topic_icon = "⚖️"
+    
+    emojis.append(topic_icon)
+
+    # 2. Country Flags Detection
+    country_map = {
+        'indonesia': '🇮🇩', 'jakarta': '🇮🇩', 'rupiah': '🇮🇩', 'jokowi': '🇮🇩', 'prabowo': '🇮🇩',
+        'amerika': '🇺🇸', 'usa': '🇺🇸', 'united states': '🇺🇸', 'biden': '🇺🇸', 'trump': '🇺🇸', 'dollar': '🇺🇸',
+        'china': '🇨🇳', 'tiongkok': '🇨🇳', 'beijing': '🇨🇳', 'xi jinping': '🇨🇳', 'yuan': '🇨🇳',
+        'jepang': '🇯🇵', 'japan': '🇯🇵', 'tokyo': '🇯🇵', 'yen': '🇯🇵',
+        'korea': '🇰🇷', 'seoul': '🇰🇷', 'k-pop': '🇰🇷',
+        'rusia': '🇷🇺', 'russia': '🇷🇺', 'moskow': '🇷🇺', 'putin': '🇷🇺',
+        'ukraina': '🇺🇦', 'ukraine': '🇺🇦', 'kiev': '🇺🇦', 'kyiv': '🇺🇦',
+        'inggris': '🇬🇧', 'uk': '🇬🇧', 'london': '🇬🇧',
+        'eropa': '🇪🇺', 'europe': '🇪🇺', 'eu': '🇪🇺',
+        'palestina': '🇵🇸', 'gaza': '🇵🇸', 'hamas': '🇵🇸',
+        'israel': '🇮🇱', 'tel aviv': '🇮🇱',
+        'arab': '🇸🇦', 'saudi': '🇸🇦', 'mekkah': '🇸🇦',
+        'malaysia': '🇲🇾', 'kuala lumpur': '🇲🇾',
+        'singapura': '🇸🇬', 'singapore': '🇸🇬',
+        'india': '🇮🇳', 'new delhi': '🇮🇳',
+        'jerman': '🇩🇪', 'germany': '🇩🇪',
+        'prancis': '🇫🇷', 'france': '🇫🇷'
+    }
+
+    found_flags = set()
+    for keyword, flag in country_map.items():
+        if keyword in text:
+            found_flags.add(flag)
+    
+    if found_flags:
+        sorted_flags = sorted(list(found_flags))
+        emojis.extend(sorted_flags[:2]) # Max 2 flags
+
+    return " ".join(emojis)
 
 def generate_twitter_intent_url(text):
     """Generate a click-to-tweet URL."""
