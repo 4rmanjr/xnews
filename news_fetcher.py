@@ -27,7 +27,9 @@ from ddgs import DDGS
 import trafilatura
 import requests
 from dotenv import load_dotenv
-import pyperclip
+# Lazy load pyperclip (may fail on Termux/headless systems)
+pyperclip = None
+PYPERCLIP_AVAILABLE = False
 
 # YAML Support for Prompts
 try:
@@ -84,6 +86,10 @@ logging.getLogger('trafilatura').setLevel(logging.WARNING)
 
 # Rich Console Instance
 console = Console()
+
+# Termux Detection (Android)
+IS_TERMUX = bool(os.environ.get('TERMUX_VERSION') or 
+                 (os.environ.get('PREFIX', '').startswith('/data/data/com.termux')))
 
 # --- Prompt Loader ---
 class PromptLoader:
@@ -835,22 +841,32 @@ def display_results_table(news_list, topic=""):
     if not news_list:
         return
     
+    # Responsive column sizing for narrow terminals (Termux/mobile)
+    term_width = shutil.get_terminal_size((80, 20)).columns
+    is_narrow = term_width < 100 or IS_TERMUX
+    
+    title_width = 25 if is_narrow else 40
+    source_width = 8 if is_narrow else 12
+    
     table = Table(
         title=f"📊 Hasil Pencarian Berita: {topic}",
         box=box.ROUNDED,
-        show_lines=True
+        show_lines=True,
+        width=min(term_width - 2, 120) if is_narrow else None
     )
     
-    table.add_column("No", style="cyan", width=4)
-    table.add_column("Judul", style="white", max_width=40)
-    table.add_column("Sumber", style="green", width=12)
-    table.add_column("Sentiment", style="magenta", width=10)
+    table.add_column("No", style="cyan", width=3)
+    table.add_column("Judul", style="white", max_width=title_width)
+    table.add_column("Sumber", style="green", width=source_width)
+    if not is_narrow:
+        table.add_column("Sentiment", style="magenta", width=10)
     table.add_column("Action", style="bold blue", justify="center")
     
     for i, news in enumerate(news_list[:10], 1):  # Show max 10 in table
         title = news.get('title', 'N/A')
-        disp_title = title[:37] + "..." if len(title) > 40 else title
-        source_name = news.get('source', 'N/A')[:12]
+        max_title_len = title_width - 3
+        disp_title = title[:max_title_len] + "..." if len(title) > title_width else title
+        source_name = news.get('source', 'N/A')[:source_width]
         url = news.get('url', '#')
         
         sentiment = news.get('sentiment', {})
@@ -869,7 +885,10 @@ def display_results_table(news_list, topic=""):
         tweet_url = generate_twitter_intent_url(tweet_text)
         action_link = f"[link={tweet_url}]🐦 Post[/link]"
         
-        table.add_row(str(i), disp_title, source_link, sent_str, action_link)
+        if is_narrow:
+            table.add_row(str(i), disp_title, source_link, action_link)
+        else:
+            table.add_row(str(i), disp_title, source_link, sent_str, action_link)
     
     console.print(table)
     
@@ -904,23 +923,40 @@ def interactive_copy_selection(news_list):
             
             if content:
                 try:
-                    # Check for Termux Clipboard
-                    if shutil.which("termux-clipboard-set"):
+                    # Termux Clipboard (priority for Android)
+                    if IS_TERMUX or shutil.which("termux-clipboard-set"):
                         subprocess.run(
                             ["termux-clipboard-set", content], 
-                            check=True
+                            check=True,
+                            input=content.encode('utf-8')
                         )
                         clipboard_method = "Termux API"
                     else:
-                        pyperclip.copy(content)
-                        clipboard_method = "System Clipboard"
+                        # Lazy-load pyperclip on desktop
+                        global pyperclip, PYPERCLIP_AVAILABLE
+                        if pyperclip is None:
+                            try:
+                                import pyperclip as _pyperclip
+                                pyperclip = _pyperclip
+                                PYPERCLIP_AVAILABLE = True
+                            except Exception:
+                                PYPERCLIP_AVAILABLE = False
+                        
+                        if PYPERCLIP_AVAILABLE:
+                            pyperclip.copy(content)
+                            clipboard_method = "System Clipboard"
+                        else:
+                            raise Exception("No clipboard backend available")
                         
                     title_preview = item.get('title', 'No Title')[:20]
                     console.print(f"[green]✅ Tersalin ({clipboard_method}):[/green] {title_preview}...")
                     console.print("[dim](Paste di Twitter/X atau medsos lain)[/dim]")
                 except Exception as e:
                     console.print(f"[red]❌ Gagal copy: {e}[/red]")
-                    console.print("[dim]Di Linux pastikan xclip/xsel ada. Di Termux install termux-api.[/dim]")
+                    if IS_TERMUX:
+                        console.print("[dim]Di Termux: pkg install termux-api, lalu install app Termux:API dari F-Droid.[/dim]")
+                    else:
+                        console.print("[dim]Di Linux pastikan xclip/xsel ada (apt install xclip).[/dim]")
             else:
                 console.print("[yellow]⚠ Tidak ada konten untuk disalin.[/yellow]")
         else:
@@ -980,6 +1016,8 @@ def interactive_mode():
         status_items.append("[green]✓ Custom Prompts[/green]")
     else:
         status_items.append("[yellow]⚠ Default Prompts (no yaml)[/yellow]")
+    if IS_TERMUX:
+        status_items.append("[cyan]📱 Termux[/cyan]")
     
     console.print(f"Status: {' | '.join(status_items)}\n")
     

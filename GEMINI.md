@@ -43,6 +43,15 @@
     ./xnews.sh
     ```
 
+### Termux (Android) Support
+The tool is optimized for Termux. For the best experience:
+1.  **Install Termux:API**: Download the "Termux:API" app from F-Droid.
+2.  **Install system packages**: The `xnews.sh` script will attempt to install these, but you can also do it manually:
+    ```bash
+    pkg install termux-api python rust clang binutils libxml2 libxslt libffi openssl
+    ```
+3.  **Clipboard**: To copy drafts to your Android clipboard, the Termux:API package must be installed.
+
 ### Usage Examples
 The tool supports both interactive and argument-based execution.
 
