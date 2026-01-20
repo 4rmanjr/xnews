@@ -384,27 +384,31 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
         }
         
         extracted_text = ""
-        downloaded = None
         
         # --- LAYER 1: Trafilatura Native Fetch ---
         try:
-            downloaded = trafilatura.fetch_url(url)
+            raw_html = trafilatura.fetch_url(url)
+            if raw_html:
+                extracted_text = trafilatura.extract(raw_html, include_comments=False, include_tables=False)
         except Exception:
             pass
             
+        # If Layer 1 failed to produce meaningful text, try Layer 2
         # --- LAYER 2: Requests Library (Better Headers) ---
-        if not downloaded:
+        if not extracted_text or len(extracted_text) < 200:
             try:
                 # Verify=False to bypass some strict SSL issues on old sites
                 response = requests.get(url, headers=headers, timeout=TIMEOUT_SECONDS, verify=False)
                 if response.status_code == 200:
-                    downloaded = response.text
+                    raw_html = response.text
+                    extracted_text = trafilatura.extract(raw_html, include_comments=False, include_tables=False)
             except Exception:
                 pass
 
+        # If Layer 2 also failed, try Layer 3
         # --- LAYER 3: System cURL (Linux/Termux Superpower) ---
         # Bypasses many TLS Fingerprint blocks that Python requests fail on
-        if not downloaded and shutil.which("curl"):
+        if (not extracted_text or len(extracted_text) < 200) and shutil.which("curl"):
             try:
                 cmd = [
                     "curl", "-s", "-L", 
@@ -414,16 +418,13 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
                 if result.returncode == 0 and len(result.stdout) > 500: # Ensure we got substantial data
-                    downloaded = result.stdout
+                    raw_html = result.stdout
+                    extracted_text = trafilatura.extract(raw_html, include_comments=False, include_tables=False)
             except Exception:
                 pass
-            
-        # Extract Text from whichever method succeeded
-        if downloaded:
-            try:
-                extracted_text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
-            except:
-                pass
+        
+        # Use whatever raw_html we have for metadata fallback if text extraction failed but we have HTML
+        downloaded = locals().get('raw_html', None)
         
         # Fallback to snippet body if extraction failed completely
         if not extracted_text:
