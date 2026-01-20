@@ -1,6 +1,9 @@
 # Data & Reports
 reports/
 
+# Cache
+.cache/
+
 # Except README
 !README.md
 
