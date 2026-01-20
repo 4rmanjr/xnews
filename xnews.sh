@@ -107,6 +107,58 @@ if [ "$IS_TERMUX" = true ]; then
     export CARGO_BUILD_JOBS=1
 fi
 
+# 0.5. Cek Linux System Dependencies (Clipboard)
+if [ "$IS_TERMUX" = false ] && [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Cek session type (Wayland vs X11)
+    SESSION_TYPE=${XDG_SESSION_TYPE:-x11}
+    MISSING_SYS_PKG=""
+    INSTALL_CMD=""
+    
+    if [ "$SESSION_TYPE" == "wayland" ]; then
+        if ! command -v wl-copy &> /dev/null; then
+            MISSING_SYS_PKG="wl-clipboard"
+        fi
+    else
+        # Default to X11 check
+        if ! command -v xclip &> /dev/null && ! command -v xsel &> /dev/null; then
+            MISSING_SYS_PKG="xclip"
+        fi
+    fi
+
+    if [ -n "$MISSING_SYS_PKG" ]; then
+        print_step "🖥️  Memeriksa dependensi sistem ($SESSION_TYPE)..."
+        print_warning "⚠️  Paket '$MISSING_SYS_PKG' belum terinstall (diperlukan untuk fitur copy-paste)."
+        
+        # Deteksi Package Manager
+        if command -v apt-get &> /dev/null; then
+            INSTALL_CMD="sudo apt-get install -y $MISSING_SYS_PKG"
+        elif command -v dnf &> /dev/null; then
+            INSTALL_CMD="sudo dnf install -y $MISSING_SYS_PKG"
+        elif command -v pacman &> /dev/null; then
+            INSTALL_CMD="sudo pacman -S --noconfirm $MISSING_SYS_PKG"
+        fi
+
+        if [ -n "$INSTALL_CMD" ]; then
+            echo -e "   Apakah Anda ingin menginstallnya otomatis? (y/n)"
+            read -r -p "   > " response
+            if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+                print_step "   📥 Menjalankan: $INSTALL_CMD"
+                eval "$INSTALL_CMD"
+                if [ $? -eq 0 ]; then
+                    print_success "✅ Berhasil menginstall $MISSING_SYS_PKG"
+                else
+                    print_error "❌ Gagal menginstall. Silakan install manual."
+                fi
+            else
+                print_warning "   ⏭️  Dilewati. Fitur copy mungkin tidak berfungsi."
+            fi
+        else
+            print_warning "   ⚠️  Package manager tidak dikenali. Silakan install '$MISSING_SYS_PKG' secara manual."
+        fi
+        echo ""
+    fi
+fi
+
 # 1. Cek Python
 print_step "🔍 Memeriksa Python..."
 if ! command -v python3 &> /dev/null; then
