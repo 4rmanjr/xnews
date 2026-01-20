@@ -370,36 +370,62 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
     if cached:
         news_item['full_text'] = cached
     else:
-        # Fake User-Agent headers
+        # Modern User-Agent headers
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Referer": "https://www.google.com/"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
+            "Referer": "https://www.google.com/",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-User": "?1"
         }
         
         extracted_text = ""
+        downloaded = None
         
+        # --- LAYER 1: Trafilatura Native Fetch ---
         try:
-            # Attempt 1: Use trafilatura fetch_url
             downloaded = trafilatura.fetch_url(url)
-            
-            # Attempt 2: Use requests manually
-            if not downloaded:
-                try:
-                    response = requests.get(url, headers=headers, timeout=TIMEOUT_SECONDS)
-                    response.raise_for_status()
-                    downloaded = response.text
-                except Exception:
-                    pass
-            
-            # Extract Text
-            if downloaded:
-                extracted_text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
         except Exception:
             pass
+            
+        # --- LAYER 2: Requests Library (Better Headers) ---
+        if not downloaded:
+            try:
+                # Verify=False to bypass some strict SSL issues on old sites
+                response = requests.get(url, headers=headers, timeout=TIMEOUT_SECONDS, verify=False)
+                if response.status_code == 200:
+                    downloaded = response.text
+            except Exception:
+                pass
+
+        # --- LAYER 3: System cURL (Linux/Termux Superpower) ---
+        # Bypasses many TLS Fingerprint blocks that Python requests fail on
+        if not downloaded and shutil.which("curl"):
+            try:
+                cmd = [
+                    "curl", "-s", "-L", 
+                    "-A", headers["User-Agent"],
+                    "--max-time", str(TIMEOUT_SECONDS),
+                    url
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+                if result.returncode == 0 and len(result.stdout) > 500: # Ensure we got substantial data
+                    downloaded = result.stdout
+            except Exception:
+                pass
+            
+        # Extract Text from whichever method succeeded
+        if downloaded:
+            try:
+                extracted_text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
+            except:
+                pass
         
-        # Fallback to snippet body
+        # Fallback to snippet body if extraction failed completely
         if not extracted_text:
             extracted_text = news_item.get('body', '')
         
