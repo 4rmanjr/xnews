@@ -98,6 +98,9 @@ if [ "$IS_TERMUX" = true ]; then
         echo -e "   Saran: pkg install termux-api"
         # Optional: pkg install termux-api -y
     fi
+    
+    # FIX: Maturin/Rust build error "Failed to determine Android API level"
+    export ANDROID_API_LEVEL=24
 fi
 
 # 1. Cek Python
