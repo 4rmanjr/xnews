@@ -56,6 +56,12 @@ except ImportError:
     GROQ_AVAILABLE = False
 
 try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+try:
     from textblob import TextBlob
     TEXTBLOB_AVAILABLE = True
 except ImportError:
@@ -79,7 +85,17 @@ PROMPT_FILE = "prompts.yaml"
 
 # Groq Configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# Gemini Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+
+# AI Provider Configuration
+# Default: groq
+AI_PROVIDER = os.getenv("AI_PROVIDER", "groq").lower()
+if AI_PROVIDER not in ["groq", "gemini"]:
+    AI_PROVIDER = "groq"
 
 # Suppress Logs & Warnings
 warnings.filterwarnings("ignore", message="This package.*renamed.*ddgs")
@@ -172,16 +188,10 @@ class CacheManager:
 
 cache = CacheManager()
 
-# --- AI Summarization with Groq ---
-def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -> str:
-    """
-    Summarize text using Groq LLM.
-    
-    Args:
-        text: The text to summarize
-        max_sentences: Number of sentences for detailed summary
-        for_twitter: If True, creates a short, engaging summary with emojis (max 200 chars)
-    """
+# --- Internal AI Logic (Isolated) ---
+
+def _groq_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -> str:
+    """Summarize text using Groq LLM (Original Logic)."""
     if not GROQ_AVAILABLE or not GROQ_API_KEY:
         return ""
     
@@ -190,20 +200,15 @@ def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -
     
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        
-        # Truncate for API limit
-        truncated = text[:4000] if len(text) > 4000 else text
+        truncated = text[:15000] if len(text) > 15000 else text
         
         if for_twitter:
-            # Load from YAML
             system_prompt = prompt_loader.get('summary', 'twitter', 'system', default="You are a social media expert.")
             user_prompt_tpl = prompt_loader.get('summary', 'twitter', 'user', default="Summarize this:\n\n{text}")
             user_prompt = user_prompt_tpl.format(text=truncated)
-            max_tokens = 300
+            max_tokens = 1024
         else:
-            # Load from YAML
             system_prompt_tpl = prompt_loader.get('summary', 'standard', 'system', default="Summarize in {max_sentences} sentences.")
-            # Handle potential formatting in system prompt if it exists
             try:
                 system_prompt = system_prompt_tpl.format(max_sentences=max_sentences)
             except:
@@ -211,7 +216,7 @@ def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -
                 
             user_prompt_tpl = prompt_loader.get('summary', 'standard', 'user', default="Summarize:\n\n{text}")
             user_prompt = user_prompt_tpl.format(text=truncated)
-            max_tokens = 300
+            max_tokens = 1024
         
         response = client.chat.completions.create(
             model=GROQ_MODEL,
@@ -219,39 +224,78 @@ def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.5,  # Slightly higher for more creative output
+            temperature=0.5,
             max_tokens=max_tokens
         )
         
         result = response.choices[0].message.content.strip()
-        
-        # Ensure Twitter summary doesn't exceed 750 chars
-        if for_twitter and len(result) > 750:
-            result = result[:747] + "..."
-        
+        if for_twitter and len(result) > 2000:
+            result = result[:1997] + "..."
         return result
     except Exception as e:
-        console.print(f"[dim]AI Summary error: {e}[/dim]")
+        console.print(f"[dim]Groq Summary error: {e}[/dim]")
         return ""
 
-
-def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
-    """Generate a complete, engaging tweet using AI."""
-    if not GROQ_AVAILABLE or not GROQ_API_KEY:
+def _gemini_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False) -> str:
+    """Summarize text using Gemini LLM."""
+    if not GEMINI_AVAILABLE or not GEMINI_API_KEY:
         return ""
     
-    if not text:
+    if not text or len(text) < 100:
         return ""
     
     try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        
+        truncated = text[:100000] if len(text) > 100000 else text
+        
+        if for_twitter:
+            system_prompt = prompt_loader.get('summary', 'twitter', 'system', default="You are a social media expert.")
+            user_prompt_tpl = prompt_loader.get('summary', 'twitter', 'user', default="Summarize this:\n\n{text}")
+        else:
+            system_prompt_tpl = prompt_loader.get('summary', 'standard', 'system', default="Summarize in {max_sentences} sentences.")
+            try:
+                system_prompt = system_prompt_tpl.format(max_sentences=max_sentences)
+            except:
+                system_prompt = system_prompt_tpl
+            user_prompt_tpl = prompt_loader.get('summary', 'standard', 'user', default="Summarize:\n\n{text}")
+        
+        user_prompt = user_prompt_tpl.format(text=truncated)
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
+        
+        response = model.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.5,
+                max_output_tokens=2048
+            )
+        )
+        
+        result = response.text.strip()
+        if for_twitter and len(result) > 2000:
+            result = result[:1997] + "..."
+        return result
+    except Exception as e:
+        console.print(f"[dim]Gemini Summary error: {e}[/dim]")
+        return ""
+
+# --- Combined Generation (Summary + Tweet in one call) ---
+
+def _groq_generate_combined(title: str, text: str, topic: str) -> dict:
+    """Generate both summary and tweet in single Groq API call. Saves 50% quota."""
+    if not GROQ_AVAILABLE or not GROQ_API_KEY:
+        return {"tweet": "", "summary": ""}
+    
+    try:
         client = Groq(api_key=GROQ_API_KEY)
+        # Optimized: reduced from 15000 to 5000 chars
+        truncated = text[:5000] if len(text) > 5000 else text
         
-        truncated = text[:2000] if len(text) > 2000 else text
-        
-        # Load from YAML
-        system_prompt = prompt_loader.get('tweet_generation', 'system', default="You are a twitter expert.")
-        user_prompt_tpl = prompt_loader.get('tweet_generation', 'user', default="Title: {title}\nText: {text}")
-        
+        system_prompt = prompt_loader.get('combined_generation', 'system', 
+            default="Output JSON with 'tweet' and 'summary' keys.")
+        user_prompt_tpl = prompt_loader.get('combined_generation', 'user', 
+            default="Title: {title}\nText: {text}")
         user_prompt = user_prompt_tpl.format(title=title, text=truncated)
 
         response = client.chat.completions.create(
@@ -260,24 +304,210 @@ def ai_generate_tweet_text(title: str, text: str, topic: str) -> str:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.7,
-            max_tokens=350
+            temperature=0.6,
+            max_tokens=800  # Reduced from 1024+512
+        )
+        
+        raw_output = response.choices[0].message.content.strip()
+        
+        # Parse JSON from response
+        return _parse_combined_json(raw_output)
+        
+    except Exception as e:
+        console.print(f"[dim]Groq Combined error: {e}[/dim]")
+        return {"tweet": "", "summary": ""}
+
+def _gemini_generate_combined(title: str, text: str, topic: str) -> dict:
+    """Generate both summary and tweet in single Gemini API call. Saves 50% quota."""
+    if not GEMINI_AVAILABLE or not GEMINI_API_KEY:
+        return {"tweet": "", "summary": ""}
+    
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        
+        # Optimized: reduced from 30000 to 5000 chars
+        truncated = text[:5000] if len(text) > 5000 else text
+        
+        system_prompt = prompt_loader.get('combined_generation', 'system', 
+            default="Output JSON with 'tweet' and 'summary' keys.")
+        user_prompt_tpl = prompt_loader.get('combined_generation', 'user', 
+            default="Title: {title}\nText: {text}")
+        user_prompt = user_prompt_tpl.format(title=title, text=truncated)
+        
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
+        
+        console.print(f"[dim]📤 Gemini Combined: Sending {len(full_prompt)} chars...[/dim]")
+
+        response = model.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.6,
+                max_output_tokens=1024
+            )
+        )
+        
+        if not response.text:
+            console.print(f"[red]❌ Gemini returned empty response[/red]")
+            return {"tweet": "", "summary": ""}
+        
+        raw_output = response.text.strip()
+        result = _parse_combined_json(raw_output)
+        
+        console.print(f"[dim]✅ Gemini Combined: Got tweet ({len(result.get('tweet', ''))} chars) + summary[/dim]")
+        return result
+        
+    except Exception as e:
+        console.print(f"[red]❌ Gemini Combined error: {type(e).__name__}: {e}[/red]")
+        return {"tweet": "", "summary": ""}
+
+def _parse_combined_json(raw_output: str) -> dict:
+    """Parse JSON from AI response with fallback handling."""
+    import json
+    
+    # Clean markdown code blocks if present
+    cleaned = raw_output
+    if "```json" in cleaned:
+        cleaned = cleaned.split("```json")[1].split("```")[0]
+    elif "```" in cleaned:
+        cleaned = cleaned.split("```")[1].split("```")[0]
+    
+    cleaned = cleaned.strip()
+    
+    try:
+        data = json.loads(cleaned)
+        tweet = data.get("tweet", "").strip().replace('**', '').replace('__', '')
+        summary = data.get("summary", "").strip()
+        
+        if len(tweet) > 2000:
+            tweet = tweet[:1997] + "..."
+        
+        return {"tweet": tweet, "summary": summary}
+    except json.JSONDecodeError:
+        # Fallback: try to extract content manually
+        console.print("[dim]JSON parse failed, using fallback extraction[/dim]")
+        return {"tweet": raw_output[:750] if raw_output else "", "summary": ""}
+
+def ai_generate_combined(title: str, text: str, topic: str, provider: str = None) -> dict:
+    """Public wrapper for combined AI generation (summary + tweet)."""
+    target_provider = provider or AI_PROVIDER
+    
+    if target_provider == "gemini":
+        return _gemini_generate_combined(title, text, topic)
+    else:
+        return _groq_generate_combined(title, text, topic)
+
+# --- Standalone Tweet Generation (for regenerate feature) ---
+
+def _groq_generate_tweet(title: str, text: str, topic: str) -> str:
+    """Generate tweet using Groq (for regenerate only)."""
+    if not GROQ_AVAILABLE or not GROQ_API_KEY:
+        return ""
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        truncated = text[:5000] if len(text) > 5000 else text
+        system_prompt = prompt_loader.get('tweet_generation', 'system', default="You are a twitter expert.")
+        user_prompt_tpl = prompt_loader.get('tweet_generation', 'user', default="Title: {title}\nText: {text}")
+        user_prompt = user_prompt_tpl.format(title=title, text=truncated)
+
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.6,
+            max_tokens=300
         )
         
         tweet_text = response.choices[0].message.content.strip()
+        tweet_text = tweet_text.strip('"\'').replace('**', '').replace('__', '')
+        if len(tweet_text) > 2000:
+            tweet_text = tweet_text[:1997] + "..."
+        return tweet_text
+    except Exception as e:
+        console.print(f"[dim]Groq Tweet error: {e}[/dim]")
+        return ""
+
+def _gemini_generate_tweet(title: str, text: str, topic: str) -> str:
+    """Generate tweet using Gemini."""
+    if not GEMINI_AVAILABLE:
+        console.print("[red]❌ Gemini SDK tidak tersedia. Install: pip install google-generativeai[/red]")
+        return ""
+    if not GEMINI_API_KEY:
+        console.print("[red]❌ GEMINI_API_KEY tidak ditemukan di .env[/red]")
+        return ""
+    
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel(GEMINI_MODEL)
         
-        # Remove quotes and markdown formatting (bold/italic)
+        truncated = text[:30000] if len(text) > 30000 else text
+        
+        # Load prompts with debug info
+        system_prompt = prompt_loader.get('tweet_generation', 'system')
+        user_prompt_tpl = prompt_loader.get('tweet_generation', 'user')
+        
+        if not system_prompt:
+            console.print("[yellow]⚠ prompts.yaml: 'tweet_generation.system' tidak ditemukan, pakai default[/yellow]")
+            system_prompt = "You are a twitter expert."
+        
+        if not user_prompt_tpl:
+            console.print("[yellow]⚠ prompts.yaml: 'tweet_generation.user' tidak ditemukan, pakai default[/yellow]")
+            user_prompt_tpl = "Title: {title}\nText: {text}"
+        
+        user_prompt = user_prompt_tpl.format(title=title, text=truncated)
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
+        
+        # Debug: Show prompt length
+        console.print(f"[dim]📤 Gemini Tweet: Sending {len(full_prompt)} chars to {GEMINI_MODEL}...[/dim]")
+
+        response = model.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=2048
+            )
+        )
+        
+        # Check if response has text
+        if not response.text:
+            console.print(f"[red]❌ Gemini returned empty response. Candidates: {response.candidates}[/red]")
+            return ""
+        
+        tweet_text = response.text.strip()
         tweet_text = tweet_text.strip('"\'').replace('**', '').replace('__', '')
         
-        # Ensure total doesn't exceed 750
-        if len(tweet_text) > 750:
-            tweet_text = tweet_text[:747] + "..."
+        # Debug: Show result length
+        console.print(f"[dim]✅ Gemini Tweet: Received {len(tweet_text)} chars[/dim]")
         
+        if len(tweet_text) > 2000:
+            tweet_text = tweet_text[:1997] + "..."
         return tweet_text
         
     except Exception as e:
-        console.print(f"[dim]AI Tweet error: {e}[/dim]")
+        console.print(f"[red]❌ Gemini Tweet Error: {type(e).__name__}: {e}[/red]")
         return ""
+
+# --- Public AI Functions (Wrappers) ---
+
+def ai_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False, provider: str = None) -> str:
+    """Public wrapper for AI summarization."""
+    target_provider = provider or AI_PROVIDER
+    
+    if target_provider == "gemini":
+        return _gemini_summarize(text, max_sentences, for_twitter)
+    else:
+        return _groq_summarize(text, max_sentences, for_twitter)
+
+def ai_generate_tweet_text(title: str, text: str, topic: str, provider: str = None) -> str:
+    """Public wrapper for AI tweet generation."""
+    target_provider = provider or AI_PROVIDER
+    
+    if target_provider == "gemini":
+        return _gemini_generate_tweet(title, text, topic)
+    else:
+        return _groq_generate_tweet(title, text, topic)
 
 # --- Sentiment Analysis ---
 def analyze_sentiment(text: str) -> dict:
@@ -481,27 +711,43 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
         current_title = news_item.get('title', '')
         if 'URL Processing' in current_title or 'Pemrosesan URL' in current_title:
              # Use AI to generate title from text
-             if GROQ_API_KEY:
-                 try:
-                    client = Groq(api_key=GROQ_API_KEY)
-                    user_prompt_tpl = prompt_loader.get('title_generation', 'user', default="Create title from:\n\n{text}")
-                    user_prompt = user_prompt_tpl.format(text=text_to_process[:500])
-                    
-                    t_resp = client.chat.completions.create(
-                        model=GROQ_MODEL,
-                        messages=[{"role": "user", "content": user_prompt}],
-                        max_tokens=20
-                    )
-                    news_item['title'] = t_resp.choices[0].message.content.strip().strip('"')
-                 except:
-                    pass
+             if (AI_PROVIDER == "groq" and GROQ_API_KEY) or (AI_PROVIDER == "gemini" and GEMINI_API_KEY):
+                 def _try_gen_title(prov):
+                    try:
+                        if prov == "gemini" and GEMINI_API_KEY:
+                            genai.configure(api_key=GEMINI_API_KEY)
+                            model = genai.GenerativeModel(GEMINI_MODEL)
+                            user_prompt_tpl = prompt_loader.get('title_generation', 'user', default="Create title from:\n\n{text}")
+                            user_prompt = user_prompt_tpl.format(text=text_to_process[:500])
+                            t_resp = model.generate_content(user_prompt, generation_config={"max_output_tokens": 100})
+                            return t_resp.text.strip().strip('"')
+                        elif prov == "groq" and GROQ_API_KEY:
+                            client = Groq(api_key=GROQ_API_KEY)
+                            user_prompt_tpl = prompt_loader.get('title_generation', 'user', default="Create title from:\n\n{text}")
+                            user_prompt = user_prompt_tpl.format(text=text_to_process[:500])
+                            t_resp = client.chat.completions.create(
+                                model=GROQ_MODEL, messages=[{"role": "user", "content": user_prompt}], max_tokens=20
+                            )
+                            return t_resp.choices[0].message.content.strip().strip('"')
+                    except:
+                        pass
+                    return None
 
-        # AI Summarization
-        if do_summarize and GROQ_API_KEY:
-            news_item['ai_summary'] = ai_summarize(text_to_process)
-            # Also generate AI Tweet
+                 # Step 1: Active Provider
+                 new_title = _try_gen_title(AI_PROVIDER)
+                 
+                 if new_title:
+                    news_item['title'] = new_title
+
+        # AI Summarization + Tweet (Combined in single API call for efficiency)
+        if do_summarize and ((AI_PROVIDER == "groq" and GROQ_API_KEY) or (AI_PROVIDER == "gemini" and GEMINI_API_KEY)):
             title = news_item.get('title', '')
-            news_item['ai_tweet'] = ai_generate_tweet_text(title, text_to_process, topic)
+            
+            # Single API call for both summary and tweet (saves 50% quota)
+            combined_result = ai_generate_combined(title, text_to_process, topic)
+            
+            news_item['ai_summary'] = combined_result.get('summary', '')
+            news_item['ai_tweet'] = combined_result.get('tweet', '')
         
         # Sentiment Analysis
         if do_sentiment:
@@ -830,8 +1076,8 @@ def save_to_markdown(news_list, filename, topic):
                 if full_text:
                     clean_text = "\n\n".join([p.strip() for p in full_text.split('\n') if p.strip()])
                     # Truncate for readability
-                    if len(clean_text) > 2000:
-                        clean_text = clean_text[:2000] + "\n\n_... (teks dipotong)_"
+                    if len(clean_text) > 10000:
+                        clean_text = clean_text[:10000] + "\n\n_... (teks dipotong agar file tidak terlalu besar)_"
                     f.write(f"{clean_text}\n\n")
                 else:
                     f.write("_Tidak ada konten teks._\n\n")
@@ -902,24 +1148,59 @@ def display_results_table(news_list, topic=""):
     if len(news_list) > 10:
         console.print(f"[dim]... dan {len(news_list) - 10} berita lainnya (lihat file output)[/dim]")
 
-def interactive_copy_selection(news_list):
-    """Interactive prompt to copy content to clipboard."""
+def interactive_copy_selection(news_list, topic=""):
+    """Interactive prompt to copy content to clipboard or regenerate AI content."""
     if not news_list:
         return
 
-    console.print("\n[bold yellow]📋 Opsi Copy:[/bold yellow]")
-    console.print("• Ketik [bold cyan]nomor urut[/bold cyan] untuk copy draft.")
-    console.print("• Tekan [bold green]Enter[/bold green] (kosong) untuk cari berita lain.")
+    # Menu yang lebih jelas untuk pengguna awam
+    menu_text = """
+[bold cyan]1, 2, 3...[/bold cyan]  → Copy draft ke clipboard (siap paste ke X/Twitter)
+[bold magenta]r1, r2...[/bold magenta]  → Regenerate ulang jika kurang puas
+[bold green]Enter[/bold green]      → Kembali ke pencarian baru
+"""
+    console.print(Panel(menu_text.strip(), title="📋 Apa yang mau dilakukan?", border_style="yellow"))
     
     while True:
-        choice = console.input("\n[bold]Pilih Nomor (Enter utk Lanjut) > [/bold]").strip()
+        choice = console.input("\n[bold]Pilih > [/bold]").strip()
         
         if not choice:
             console.print("[dim]🔄 Kembali ke menu pencarian...[/dim]")
             break
-            
+        
+        # --- REGENERATE COMMAND (r1, r2, etc.) ---
+        if choice.lower().startswith('r') and len(choice) > 1 and choice[1:].isdigit():
+            idx = int(choice[1:]) - 1
+            if 0 <= idx < len(news_list):
+                item = news_list[idx]
+                console.print(f"\n[yellow]🔄 Regenerating AI content for article #{idx+1}...[/yellow]")
+                
+                # Get stored text (already downloaded, no re-fetch needed)
+                text = item.get('full_text') or item.get('body', '')
+                title = item.get('title', '')
+                
+                if text and len(text) > 50:
+                    # Regenerate AI Tweet (primary output)
+                    console.print("[dim]Generating new tweet draft...[/dim]")
+                    new_tweet = ai_generate_tweet_text(title, text, topic)
+                    
+                    if new_tweet:
+                        item['ai_tweet'] = new_tweet
+                        console.print(f"\n[green]✅ Regenerated successfully![/green]")
+                        console.print(Panel(new_tweet, title="🐦 New Draft", border_style="cyan"))
+                        console.print(f"[dim]{len(new_tweet)} karakter[/dim]")
+                        console.print(f"[yellow]💡 Ketik '{idx+1}' untuk copy ke clipboard, atau 'r{idx+1}' untuk regenerate lagi[/yellow]")
+                    else:
+                        console.print("[red]❌ Gagal generate. Cek API key dan quota.[/red]")
+                else:
+                    console.print("[red]❌ Tidak ada teks artikel untuk di-regenerate.[/red]")
+            else:
+                console.print(f"[red]❌ Nomor {choice[1:]} tidak ada.[/red]")
+            continue
+        
+        # --- COPY COMMAND (just number) ---
         if not choice.isdigit():
-            console.print("[red]❌ Masukkan nomor yang valid![/red]")
+            console.print("[red]❌ Masukkan nomor yang valid atau 'r + nomor'![/red]")
             continue
             
         idx = int(choice) - 1
@@ -969,6 +1250,7 @@ def interactive_copy_selection(news_list):
         else:
             console.print(f"[red]❌ Nomor {choice} tidak ada.[/red]")
 
+
 # --- Watch Mode ---
 def watch_mode(topic, region='wt-wt', interval_minutes=30, do_translate=False, do_summarize=False):
     """Continuously monitor for new news."""
@@ -1009,14 +1291,25 @@ def watch_mode(topic, region='wt-wt', interval_minutes=30, do_translate=False, d
 
 # --- Interactive Mode ---
 def interactive_mode():
+    global AI_PROVIDER, GROQ_MODEL, GEMINI_MODEL
     print_banner()
     
     # Show status
     status_items = []
     if GROQ_API_KEY:
-        status_items.append("[green]✓ Groq AI[/green]")
+        status_items.append("[green]✓ Groq[/green]")
     else:
-        status_items.append("[red]✗ Groq AI (no API key)[/red]")
+        status_items.append("[red]✗ Groq[/red]")
+        
+    if GEMINI_API_KEY:
+        status_items.append("[green]✓ Gemini[/green]")
+    else:
+        status_items.append("[red]✗ Gemini[/red]")
+    
+    current_ai = AI_PROVIDER.upper()
+    current_model = GROQ_MODEL if AI_PROVIDER == "groq" else GEMINI_MODEL
+    status_items.append(f"[bold yellow]Active: {current_ai}[/bold yellow] ({current_model})")
+
     if TEXTBLOB_AVAILABLE:
         status_items.append("[green]✓ Sentiment[/green]")
     if YAML_AVAILABLE:
@@ -1030,46 +1323,103 @@ def interactive_mode():
     
     while True:
         try:
-            console.print("\n[bold cyan]─── 🔍 Pencarian Baru ───[/bold cyan]")
-            topic = console.input("[bold]📝 Masukkan Topik / Link URL (atau 'x' keluar): [/bold]").strip()
+            # Active AI Indicator
+            active_info = f"[bold cyan]AI: {AI_PROVIDER.upper()}[/bold cyan] ([dim]{GROQ_MODEL if AI_PROVIDER == 'groq' else GEMINI_MODEL}[/dim])"
+            console.print(f"\n{active_info} ─── 🔍 [bold cyan]Pencarian Baru[/bold cyan]")
+            console.print("[dim]Ketik 'info' untuk bantuan | 'x' Keluar[/dim]")
+            topic = console.input("[bold]📝 Masukkan Topik atau URL: [/bold]").strip()
         except EOFError:
             break
         if topic.lower() == 'x':
             break
+        
+        if topic.lower() == 'info':
+            help_panel = """
+[bold green]Perintah Interactive Mode:[/bold green]
+• [bold]ai groq[/bold]     : Gunakan AI dari Groq (Default)
+• [bold]ai gemini[/bold]   : Gunakan AI dari Google Gemini
+• [bold]model [nama][/bold] : Ganti model AI yang sedang aktif
+• [bold]x[/bold]            : Keluar dari aplikasi
+
+[bold yellow]Model Terpopuler:[/bold yellow]
+- [cyan]Groq:[/cyan] llama-3.3-70b-versatile, mixtral-8x7b-32768
+- [cyan]Gemini:[/cyan] gemini-2.0-flash-001, gemini-3-pro-preview, gemini-3-flash-preview
+            """
+            console.print(Panel(help_panel.strip(), title="ℹ️ Bantuan Perintah", border_style="cyan"))
+            continue
+
+        # --- Tambahan: Switch AI Provider via Command ---
+        if topic.lower().startswith("ai "):
+            cmd_parts = topic.split()
+            if len(cmd_parts) >= 2:
+                new_provider = cmd_parts[1].lower()
+                if new_provider in ["groq", "gemini"]:
+                    AI_PROVIDER = new_provider
+                    # Reset model to default when provider changes to avoid mismatch
+                    if AI_PROVIDER == "groq":
+                        GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+                    else:
+                        GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+                        
+                    console.print(f"[bold green]✅ Provider berhasil diubah ke: {AI_PROVIDER.upper()}[/bold green]")
+                    console.print(f"[dim]Model default: {GROQ_MODEL if AI_PROVIDER == 'groq' else GEMINI_MODEL}[/dim]")
+                    
+                    ai_key = GROQ_API_KEY if AI_PROVIDER == "groq" else GEMINI_API_KEY
+                    if not ai_key:
+                        console.print(f"[yellow]⚠️  Peringatan: {AI_PROVIDER.upper()}_API_KEY belum diatur![/yellow]")
+                    continue
+                else:
+                    console.print("[red]❌ Provider tidak dikenal. Pilih: groq atau gemini[/red]")
+                    continue
+
+        # --- Tambahan: Switch AI Model via Command ---
+        if topic.lower().startswith("model "):
+            cmd_parts = topic.split(maxsplit=1)
+            if len(cmd_parts) >= 2:
+                new_model = cmd_parts[1].strip()
+                
+                # Basic Validation to prevent mismatch (User typing 'gemini' for Groq)
+                if AI_PROVIDER == "groq" and "gemini" in new_model.lower():
+                    console.print("[yellow]⚠️  Sepertinya Anda mencoba memakai model Gemini di provider Groq.[/yellow]")
+                    console.print("[yellow]   Ketik 'ai gemini' dulu jika ingin pindah ke Gemini.[/yellow]")
+                    continue
+                elif AI_PROVIDER == "gemini" and ("llama" in new_model.lower() or "mixtral" in new_model.lower()):
+                    console.print("[yellow]⚠️  Sepertinya Anda mencoba memakai model Llama/Groq di provider Gemini.[/yellow]")
+                    console.print("[yellow]   Ketik 'ai groq' dulu jika ingin pindah ke Groq.[/yellow]")
+                    continue
+
+                if AI_PROVIDER == "groq":
+                    GROQ_MODEL = new_model
+                else:
+                    GEMINI_MODEL = new_model
+                console.print(f"[bold green]✅ Model {AI_PROVIDER.upper()} diubah ke: {new_model}[/bold green]")
+                continue
+
         if not topic:
             continue
         
         # URL Check in Interactive Mode
         is_url = topic.startswith(('http://', 'https://'))
         
-        if is_url:
-            region = 'wt-wt' # Default for URLs
-        else:
-            region_input = console.input("🌍 Indonesia saja? (y/n) [default: n]: ").lower()
-            region = 'id-id' if region_input in ['y', 'yes'] else 'wt-wt'
-        
-        do_trans = False
-        if region == 'wt-wt':
-            trans_input = console.input("🔄 Terjemahkan ke Indonesia? (y/n) [default: n]: ").lower()
-            do_trans = trans_input in ['y', 'yes']
-        
-        do_summary = False
-        if GROQ_API_KEY:
-            summary_input = console.input("🧠 Aktifkan AI Summary? (y/n) [default: y]: ").lower()
-            do_summary = summary_input not in ['n', 'no']
+        # SMART DEFAULTS: No more questions - just process!
+        region = 'wt-wt'  # Always global search
+        do_trans = True   # Always translate to Indonesian
+        do_summary = (AI_PROVIDER == "groq" and GROQ_API_KEY) or (AI_PROVIDER == "gemini" and GEMINI_API_KEY)
         
         # Search or URL Processing
         if is_url:
+            console.print(f"\n[dim]⚡ Mengekstrak konten dari URL...[/dim]")
             filtered = [{
                 'url': topic,
-                'title': 'URL Processing...', # Placeholder, will be updated in fetch_single_article
+                'title': 'URL Processing...',
                 'source': 'Direct Link',
                 'formatted_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'body': ''
             }]
             actual_topic = "Direct Link"
         else:
-            raw = search_topic(topic, region=region, max_results=20)
+            console.print(f"\n[dim]🔍 Mencari berita tentang '{topic}'...[/dim]")
+            raw = search_topic(topic, region=region, max_results=10)
             if not raw:
                 console.print("[yellow]Tidak ada hasil.[/yellow]")
                 continue
@@ -1080,20 +1430,93 @@ def interactive_mode():
                 continue
             actual_topic = topic
         
-        # Enrich
+        # Enrich with AI (always on if API available)
+        console.print(f"[dim]🧠 Memproses dengan AI {AI_PROVIDER.upper()}...[/dim]")
         final_news = enrich_news_content(filtered, do_translate=do_trans, do_summarize=do_summary, do_sentiment=True, topic=actual_topic)
         
         if is_url and not (final_news and final_news[0].get('full_text')):
             console.print("[red]❌ Gagal mengekstrak konten dari URL tersebut.[/red]")
             continue
 
-        # Display
-        display_results_table(final_news, actual_topic)
+        # === NEW STREAMLINED OUTPUT ===
+        current_idx = 0
+        total_articles = len(final_news)
         
-        # Interactive Copy
-        interactive_copy_selection(final_news)
+        while True:
+            article = final_news[current_idx]
+            draft = article.get('ai_tweet') or article.get('ai_summary') or ''
+            
+            # Display current draft
+            console.print(f"\n[bold cyan]📰 Artikel {current_idx + 1}/{total_articles}:[/bold cyan] {article.get('title', 'N/A')[:60]}...")
+            console.print(f"[dim]{article.get('source', '')} • {article.get('formatted_date', '')}[/dim]")
+            
+            if draft:
+                console.print(Panel(draft, title="🐦 Draft untuk X/Twitter", border_style="cyan"))
+                console.print(f"[dim]{len(draft)} karakter[/dim]")
+            else:
+                console.print("[yellow]⚠ Tidak ada draft tersedia untuk artikel ini.[/yellow]")
+            
+            # Action menu
+            menu_text = f"""
+[bold cyan]c[/bold cyan] → Copy ke clipboard
+[bold magenta]r[/bold magenta] → Regenerate draft
+[bold yellow]n[/bold yellow] → Artikel berikutnya ({current_idx + 1}/{total_articles})
+[bold green]Enter[/bold green] → Selesai, cari topik baru
+"""
+            console.print(Panel(menu_text.strip(), title="⚡ Aksi", border_style="yellow"))
+            
+            action = console.input("[bold]Pilih > [/bold]").strip().lower()
+            
+            if not action:  # Enter = done
+                break
+            
+            elif action == 'c':  # Copy
+                if draft:
+                    try:
+                        if IS_TERMUX or shutil.which("termux-clipboard-set"):
+                            subprocess.run(["termux-clipboard-set"], input=draft.encode('utf-8'), check=True)
+                            console.print("[green]✅ Tersalin ke clipboard (Termux)! Paste ke X/Twitter.[/green]")
+                        else:
+                            global pyperclip, PYPERCLIP_AVAILABLE
+                            if pyperclip is None:
+                                try:
+                                    import pyperclip as _pyperclip
+                                    pyperclip = _pyperclip
+                                    PYPERCLIP_AVAILABLE = True
+                                except:
+                                    PYPERCLIP_AVAILABLE = False
+                            if PYPERCLIP_AVAILABLE:
+                                pyperclip.copy(draft)
+                                console.print("[green]✅ Tersalin ke clipboard! Paste ke X/Twitter.[/green]")
+                            else:
+                                console.print("[red]❌ Clipboard tidak tersedia.[/red]")
+                    except Exception as e:
+                        console.print(f"[red]❌ Gagal copy: {e}[/red]")
+                else:
+                    console.print("[yellow]⚠ Tidak ada draft untuk dicopy.[/yellow]")
+            
+            elif action == 'r':  # Regenerate
+                text = article.get('full_text') or article.get('body', '')
+                title = article.get('title', '')
+                if text and len(text) > 50:
+                    console.print("[dim]🔄 Regenerating...[/dim]")
+                    new_tweet = ai_generate_tweet_text(title, text, actual_topic)
+                    if new_tweet:
+                        article['ai_tweet'] = new_tweet
+                        console.print(f"[green]✅ Regenerated![/green]")
+                    else:
+                        console.print("[red]❌ Regenerate gagal. Cek quota API.[/red]")
+                else:
+                    console.print("[red]❌ Tidak ada teks untuk regenerate.[/red]")
+            
+            elif action == 'n':  # Next article
+                current_idx = (current_idx + 1) % total_articles
+                console.print(f"[dim]→ Pindah ke artikel {current_idx + 1}[/dim]")
+            
+            else:
+                console.print("[dim]Perintah tidak dikenal. Ketik c/r/n atau Enter.[/dim]")
         
-        # Save
+        # Save reports
         ts = int(time.time())
         if is_url and final_news[0].get('title') != 'URL Processing...':
             safe_topic = "".join([c if c.isalnum() else "_" for c in final_news[0]['title'][:30]])
@@ -1104,7 +1527,7 @@ def interactive_mode():
         save_to_json(final_news, f"news_{safe_topic}_{ts}.json")
         save_to_markdown(final_news, f"Laporan_{safe_topic}_{ts}.md", final_news[0].get('title', actual_topic))
         
-        console.print("\n" + "-" * 50 + "\n")
+        console.print("\n" + "─" * 50 + "\n")
 
 # --- Main ---
 def main():
@@ -1122,7 +1545,9 @@ Contoh Penggunaan:
     parser_arg.add_argument("topik", type=str, nargs='?', help="Topik atau kata kunci berita")
     parser_arg.add_argument("--indo", action="store_true", help="Fokus berita Indonesia (id-id)")
     parser_arg.add_argument("--translate", action="store_true", help="Terjemahkan ke Bahasa Indonesia")
-    parser_arg.add_argument("--summary", action="store_true", help="Aktifkan AI Summarization (Groq)")
+    parser_arg.add_argument("--summary", action="store_true", help="Aktifkan AI Summarization (Groq/Gemini)")
+    parser_arg.add_argument("--provider", type=str, choices=["groq", "gemini"], help="Pilih AI provider (default: dari .env atau groq)")
+    parser_arg.add_argument("--gemini", action="store_true", help="Shortcut untuk menggunakan Gemini AI")
     parser_arg.add_argument("--sentiment", action="store_true", help="Aktifkan Sentiment Analysis")
     parser_arg.add_argument("--limit", type=int, default=50, help="Jumlah maksimal berita (default: 50)")
     parser_arg.add_argument("--json", action="store_true", help="Export ke format JSON")
@@ -1131,6 +1556,13 @@ Contoh Penggunaan:
     parser_arg.add_argument("--clear-cache", action="store_true", help="Hapus cache")
     
     args = parser_arg.parse_args()
+    
+    # Update AI Provider from args
+    global AI_PROVIDER
+    if args.gemini:
+        AI_PROVIDER = "gemini"
+    elif args.provider:
+        AI_PROVIDER = args.provider
     
     ensure_output_dir()
     
@@ -1212,7 +1644,7 @@ Contoh Penggunaan:
             # Interactive Copy
             if not args.watch: # Don't block watch mode
                 try:
-                    interactive_copy_selection(final_news)
+                    interactive_copy_selection(final_news, args.topik)
                 except KeyboardInterrupt:
                     pass
 
