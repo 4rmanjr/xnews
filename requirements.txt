@@ -9,6 +9,7 @@ PyYAML
 
 # AI & Analysis
 groq
+google-generativeai
 textblob
 
 # Rich Console UI

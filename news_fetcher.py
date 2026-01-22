@@ -97,6 +97,38 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "groq").lower()
 if AI_PROVIDER not in ["groq", "gemini"]:
     AI_PROVIDER = "groq"
 
+# Path to .env file for persistence
+ENV_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+
+def save_env_setting(key, value):
+    """Update or add a setting in the .env file."""
+    try:
+        lines = []
+        found = False
+        
+        if os.path.exists(ENV_FILE_PATH):
+            with open(ENV_FILE_PATH, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        
+        # Update existing key or mark for addition
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f"{key}="):
+                lines[i] = f"{key}={value}\n"
+                found = True
+                break
+        
+        # Add new key if not found
+        if not found:
+            lines.append(f"\n{key}={value}\n")
+        
+        with open(ENV_FILE_PATH, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        
+        return True
+    except Exception as e:
+        console.print(f"[dim]⚠ Gagal menyimpan ke .env: {e}[/dim]")
+        return False
+
 # Suppress Logs & Warnings
 warnings.filterwarnings("ignore", message="This package.*renamed.*ddgs")
 logging.getLogger('trafilatura').setLevel(logging.WARNING)
@@ -1360,8 +1392,14 @@ def interactive_mode():
                         GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
                     else:
                         GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
-                        
-                    console.print(f"[bold green]✅ Provider berhasil diubah ke: {AI_PROVIDER.upper()}[/bold green]")
+                    
+                    # Auto-save to .env for persistence
+                    if save_env_setting("AI_PROVIDER", new_provider):
+                        console.print(f"[bold green]✅ Provider berhasil diubah ke: {AI_PROVIDER.upper()}[/bold green]")
+                        console.print(f"[dim]💾 Tersimpan ke .env (akan aktif saat restart)[/dim]")
+                    else:
+                        console.print(f"[bold green]✅ Provider berhasil diubah ke: {AI_PROVIDER.upper()}[/bold green]")
+                    
                     console.print(f"[dim]Model default: {GROQ_MODEL if AI_PROVIDER == 'groq' else GEMINI_MODEL}[/dim]")
                     
                     ai_key = GROQ_API_KEY if AI_PROVIDER == "groq" else GEMINI_API_KEY
