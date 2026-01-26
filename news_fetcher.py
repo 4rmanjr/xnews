@@ -91,6 +91,21 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
 
+# Popular model presets for interactive picker
+GROQ_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-70b-versatile", 
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
+]
+
+GEMINI_MODELS = [
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-001",
+    "gemini-3-flash-preview",
+    "gemini-3-pro-preview"
+]
+
 # AI Provider Configuration
 # Default: groq
 AI_PROVIDER = os.getenv("AI_PROVIDER", "groq").lower()
@@ -1321,6 +1336,132 @@ def watch_mode(topic, region='wt-wt', interval_minutes=30, do_translate=False, d
     except KeyboardInterrupt:
         console.print("\n[yellow]Watch mode dihentikan.[/yellow]")
 
+# --- AI Settings Menu ---
+def ai_settings_menu():
+    """Interactive AI settings menu with easy provider/model switching."""
+    global AI_PROVIDER, GROQ_MODEL, GEMINI_MODEL
+    
+    while True:
+        # Build status indicators
+        groq_status = "[green]✅ Ready[/green]" if GROQ_API_KEY else "[red]❌ No API Key[/red]"
+        gemini_status = "[green]✅ Ready[/green]" if GEMINI_API_KEY else "[red]❌ No API Key[/red]"
+        groq_active = " [bold yellow]◀ ACTIVE[/bold yellow]" if AI_PROVIDER == "groq" else ""
+        gemini_active = " [bold yellow]◀ ACTIVE[/bold yellow]" if AI_PROVIDER == "gemini" else ""
+        current_model = GROQ_MODEL if AI_PROVIDER == "groq" else GEMINI_MODEL
+        
+        panel_content = f"""
+[bold cyan]═══ AI Configuration ═══[/bold cyan]
+
+[bold]Active Provider:[/bold] [yellow]{AI_PROVIDER.upper()}[/yellow]
+[bold]Active Model:[/bold] [cyan]{current_model}[/cyan]
+
+[dim]─── Providers ───[/dim]
+[bold][1][/bold] Groq   {groq_status}{groq_active}
+[bold][2][/bold] Gemini {gemini_status}{gemini_active}
+
+[dim]─── Actions ───[/dim]
+[bold][m][/bold] Change Model (pilih dari daftar)
+[bold][c][/bold] Custom Model (ketik manual)
+[bold][s][/bold] Save to .env (persist settings)
+[bold][x][/bold] Back to main menu
+        """
+        console.print(Panel(panel_content.strip(), title="🤖 AI Settings", border_style="cyan"))
+        
+        choice = console.input("[bold]Select > [/bold]").strip().lower()
+        
+        if choice == 'x' or not choice:
+            break
+        
+        elif choice == '1':
+            # Switch to Groq
+            if not GROQ_API_KEY:
+                console.print("[yellow]⚠️  GROQ_API_KEY belum diatur di .env[/yellow]")
+                continue
+            AI_PROVIDER = "groq"
+            save_env_setting("AI_PROVIDER", "groq")
+            console.print(f"[bold green]✅ Switched to GROQ[/bold green] (Model: {GROQ_MODEL})")
+            console.print("[dim]💾 Auto-saved to .env[/dim]")
+        
+        elif choice == '2':
+            # Switch to Gemini
+            if not GEMINI_API_KEY:
+                console.print("[yellow]⚠️  GEMINI_API_KEY belum diatur di .env[/yellow]")
+                continue
+            AI_PROVIDER = "gemini"
+            save_env_setting("AI_PROVIDER", "gemini")
+            console.print(f"[bold green]✅ Switched to GEMINI[/bold green] (Model: {GEMINI_MODEL})")
+            console.print("[dim]💾 Auto-saved to .env[/dim]")
+        
+        elif choice == 'm':
+            # Model picker submenu
+            models = GROQ_MODELS if AI_PROVIDER == "groq" else GEMINI_MODELS
+            current = GROQ_MODEL if AI_PROVIDER == "groq" else GEMINI_MODEL
+            
+            console.print(f"\n[bold cyan]Models untuk {AI_PROVIDER.upper()}:[/bold cyan]")
+            for i, model in enumerate(models, 1):
+                active_mark = " [yellow]◀ current[/yellow]" if model == current else ""
+                console.print(f"  [bold][{i}][/bold] {model}{active_mark}")
+            console.print(f"  [bold][0][/bold] Cancel")
+            
+            model_choice = console.input("\n[bold]Pilih model > [/bold]").strip()
+            
+            if model_choice == '0' or not model_choice:
+                continue
+            
+            try:
+                idx = int(model_choice) - 1
+                if 0 <= idx < len(models):
+                    if AI_PROVIDER == "groq":
+                        GROQ_MODEL = models[idx]
+                        save_env_setting("GROQ_MODEL", models[idx])
+                    else:
+                        GEMINI_MODEL = models[idx]
+                        save_env_setting("GEMINI_MODEL", models[idx])
+                    console.print(f"[bold green]✅ Model diubah ke: {models[idx]}[/bold green]")
+                    console.print("[dim]💾 Auto-saved to .env[/dim]")
+                else:
+                    console.print("[red]❌ Nomor tidak valid[/red]")
+            except ValueError:
+                console.print("[red]❌ Masukkan nomor yang valid[/red]")
+        
+        elif choice == 'c':
+            # Custom model input
+            console.print(f"\n[dim]Provider aktif: {AI_PROVIDER.upper()}[/dim]")
+            custom_model = console.input("[bold]Ketik nama model > [/bold]").strip()
+            
+            if custom_model:
+                if AI_PROVIDER == "groq":
+                    GROQ_MODEL = custom_model
+                    save_env_setting("GROQ_MODEL", custom_model)
+                else:
+                    GEMINI_MODEL = custom_model
+                    save_env_setting("GEMINI_MODEL", custom_model)
+                console.print(f"[bold green]✅ Custom model diset: {custom_model}[/bold green]")
+                console.print("[dim]💾 Auto-saved to .env[/dim]")
+        
+        elif choice == 's':
+            # Save to .env
+            saved = True
+            if not save_env_setting("AI_PROVIDER", AI_PROVIDER):
+                saved = False
+            if AI_PROVIDER == "groq":
+                if not save_env_setting("GROQ_MODEL", GROQ_MODEL):
+                    saved = False
+            else:
+                if not save_env_setting("GEMINI_MODEL", GEMINI_MODEL):
+                    saved = False
+            
+            if saved:
+                console.print("[bold green]✅ Settings tersimpan ke .env[/bold green]")
+                console.print(f"[dim]AI_PROVIDER={AI_PROVIDER}, Model={GROQ_MODEL if AI_PROVIDER == 'groq' else GEMINI_MODEL}[/dim]")
+            else:
+                console.print("[yellow]⚠️  Gagal menyimpan beberapa settings[/yellow]")
+        
+        else:
+            console.print("[dim]Perintah tidak dikenal[/dim]")
+        
+        console.print()  # spacing
+
 # --- Interactive Mode ---
 def interactive_mode():
     global AI_PROVIDER, GROQ_MODEL, GEMINI_MODEL
@@ -1358,28 +1499,36 @@ def interactive_mode():
             # Active AI Indicator
             active_info = f"[bold cyan]AI: {AI_PROVIDER.upper()}[/bold cyan] ([dim]{GROQ_MODEL if AI_PROVIDER == 'groq' else GEMINI_MODEL}[/dim])"
             console.print(f"\n{active_info} ─── 🔍 [bold cyan]Pencarian Baru[/bold cyan]")
-            console.print("[dim]Ketik 'info' untuk bantuan | 'x' Keluar[/dim]")
+            console.print("[dim]/h = bantuan | /p = pengaturan AI | /x = keluar[/dim]")
             topic = console.input("[bold]📝 Masukkan Topik atau URL: [/bold]").strip()
         except EOFError:
             break
-        if topic.lower() == 'x':
+        if topic.lower() in ['x', '/x', 'exit', 'quit']:
             break
         
-        if topic.lower() == 'info':
+        if topic.lower() in ['info', '/h', 'help', '?']:
             help_panel = """
-[bold green]Perintah Interactive Mode:[/bold green]
-• [bold]ai groq[/bold]     : Gunakan AI dari Groq (Default)
-• [bold]ai gemini[/bold]   : Gunakan AI dari Google Gemini
-• [bold]model [nama][/bold] : Ganti model AI yang sedang aktif
-• [bold]x[/bold]            : Keluar dari aplikasi
+[bold green]Perintah Cepat:[/bold green]
+• [bold]/p[/bold]  → 🆕 Pengaturan AI (pilih provider & model)
+• [bold]/h[/bold]  → Tampilkan bantuan ini
+• [bold]/x[/bold]  → Keluar dari aplikasi
 
-[bold yellow]Model Terpopuler:[/bold yellow]
-- [cyan]Groq:[/cyan] llama-3.3-70b-versatile, mixtral-8x7b-32768
-- [cyan]Gemini:[/cyan] gemini-2.0-flash-001, gemini-3-pro-preview, gemini-3-flash-preview
+[bold yellow]Quick Switch AI:[/bold yellow]
+• [bold]ai groq[/bold]   → Langsung pakai Groq
+• [bold]ai gemini[/bold] → Langsung pakai Gemini
+
+[bold cyan]Model Populer:[/bold cyan]
+• Groq: llama-3.3-70b-versatile, mixtral-8x7b-32768
+• Gemini: gemini-2.0-flash-lite, gemini-3-flash-preview
             """
-            console.print(Panel(help_panel.strip(), title="ℹ️ Bantuan Perintah", border_style="cyan"))
+            console.print(Panel(help_panel.strip(), title="ℹ️ Bantuan", border_style="cyan"))
             continue
 
+        # --- AI Settings Menu ---
+        if topic.lower() in ['/p', 'ai', '/ai', 'settings', 'pengaturan']:
+            ai_settings_menu()
+            continue
+        
         # --- Tambahan: Switch AI Provider via Command ---
         if topic.lower().startswith("ai "):
             cmd_parts = topic.split()
