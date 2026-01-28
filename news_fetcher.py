@@ -21,6 +21,7 @@ import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, Optional, Callable
 
 # Third Party Libraries
 from dateutil import parser
@@ -159,11 +160,11 @@ IS_TERMUX = bool(os.environ.get('TERMUX_VERSION') or
 class PromptLoader:
     """Handles loading and formatting of prompts from YAML file."""
     
-    def __init__(self, filepath=PROMPT_FILE):
-        self.filepath = filepath
-        self.prompts = self._load_prompts()
+    def __init__(self, filepath: str = PROMPT_FILE) -> None:
+        self.filepath: str = filepath
+        self.prompts: dict[str, Any] = self._load_prompts()
 
-    def _load_prompts(self):
+    def _load_prompts(self) -> dict[str, Any]:
         if not YAML_AVAILABLE:
             # console.print("[dim]PyYAML not installed. Using internal defaults (if any).[/dim]")
             return {}
@@ -174,14 +175,14 @@ class PromptLoader:
             
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
-        except Exception as e:
+                return yaml.safe_load(f) or {}
+        except (yaml.YAMLError, OSError) as e:
             console.print(f"[red]Error loading prompts: {e}[/red]")
             return {}
 
-    def get(self, *keys, default=None):
+    def get(self, *keys: str, default: Optional[Any] = None) -> Optional[Any]:
         """Deep get for nested dictionary."""
-        val = self.prompts
+        val: Any = self.prompts
         for key in keys:
             if isinstance(val, dict):
                 val = val.get(key)
@@ -195,14 +196,14 @@ prompt_loader = PromptLoader()
 class CacheManager:
     """Simple file-based cache system."""
     
-    def __init__(self):
-        self.cache_dir = Path(CACHE_DIR)
+    def __init__(self) -> None:
+        self.cache_dir: Path = Path(CACHE_DIR)
         self.cache_dir.mkdir(exist_ok=True)
     
     def _get_hash(self, key: str) -> str:
         return hashlib.sha256(key.encode()).hexdigest()
     
-    def get(self, key: str):
+    def get(self, key: str) -> Optional[Any]:
         cache_file = self.cache_dir / f"{self._get_hash(key)}.json"
         if not cache_file.exists():
             return None
@@ -215,10 +216,10 @@ class CacheManager:
                 cache_file.unlink()
                 return None
             return data['content']
-        except Exception:
+        except (json.JSONDecodeError, KeyError, OSError):
             return None
     
-    def set(self, key: str, content):
+    def set(self, key: str, content: Any) -> None:
         cache_file = self.cache_dir / f"{self._get_hash(key)}.json"
         try:
             with open(cache_file, 'w') as f:
@@ -226,10 +227,10 @@ class CacheManager:
                     'cached_at': datetime.now().isoformat(),
                     'content': content
                 }, f)
-        except Exception:
+        except OSError:
             pass
     
-    def clear(self):
+    def clear(self) -> None:
         for f in self.cache_dir.glob("*.json"):
             f.unlink()
 
@@ -258,7 +259,7 @@ def _groq_summarize(text: str, max_sentences: int = 3, for_twitter: bool = False
             system_prompt_tpl = prompt_loader.get('summary', 'standard', 'system', default="Summarize in {max_sentences} sentences.")
             try:
                 system_prompt = system_prompt_tpl.format(max_sentences=max_sentences)
-            except:
+            except (KeyError, ValueError):
                 system_prompt = system_prompt_tpl
                 
             user_prompt_tpl = prompt_loader.get('summary', 'standard', 'user', default="Summarize:\n\n{text}")
@@ -304,7 +305,7 @@ def _gemini_summarize(text: str, max_sentences: int = 3, for_twitter: bool = Fal
             system_prompt_tpl = prompt_loader.get('summary', 'standard', 'system', default="Summarize in {max_sentences} sentences.")
             try:
                 system_prompt = system_prompt_tpl.format(max_sentences=max_sentences)
-            except:
+            except (KeyError, ValueError):
                 system_prompt = system_prompt_tpl
             user_prompt_tpl = prompt_loader.get('summary', 'standard', 'user', default="Summarize:\n\n{text}")
         
@@ -572,13 +573,42 @@ def analyze_sentiment(text: str) -> dict:
             return {"label": "Negatif", "score": polarity, "emoji": "😟"}
         else:
             return {"label": "Netral", "score": polarity, "emoji": "😐"}
-    except Exception:
+    except (ValueError, AttributeError) as e:
+        console.print(f"[dim]Sentiment analysis error: {e}[/dim]")
         return {"label": "Unknown", "score": 0.0, "emoji": "❓"}
 
 # --- Utility Functions ---
-def ensure_output_dir():
+def ensure_output_dir() -> None:
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
+
+def validate_url(url: str) -> bool:
+    """Validate URL to prevent command injection in subprocess calls.
+    
+    Args:
+        url: URL string to validate
+        
+    Returns:
+        True if URL is valid and safe, False otherwise
+    """
+    if not url:
+        return False
+    try:
+        parsed = urllib.parse.urlparse(url)
+        # Only allow http/https schemes
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        # Must have a hostname
+        if not parsed.netloc:
+            return False
+        # Block suspicious characters that could be used for injection
+        dangerous_chars = [';', '|', '&', '$', '`', '\n', '\r']
+        if any(char in url for char in dangerous_chars):
+            console.print(f"[yellow]⚠ URL contains suspicious characters: {url[:50]}...[/yellow]")
+            return False
+        return True
+    except (ValueError, AttributeError):
+        return False
 
 def print_banner():
     banner = """
@@ -590,10 +620,10 @@ def print_banner():
     """
     console.print(Panel(banner.strip(), style="bold cyan", box=box.DOUBLE))
 
-def clean_title(title):
+def clean_title(title: str) -> str:
     return title.lower().strip()
 
-def is_duplicate(news_item, existing_titles, threshold=0.85):
+def is_duplicate(news_item: dict[str, Any], existing_titles: set[str], threshold: float = 0.85) -> bool:
     title = clean_title(news_item.get('title', ''))
     if title in existing_titles:
         return True
@@ -602,7 +632,7 @@ def is_duplicate(news_item, existing_titles, threshold=0.85):
             return True
     return False
 
-def translate_text(text, target='id'):
+def translate_text(text: str, target: str = 'id') -> str:
     """Translate long text by splitting into paragraphs."""
     if not text:
         return ""
@@ -621,23 +651,30 @@ def translate_text(text, target='id'):
             else:
                 res = translator.translate(p)
             translated_parts.append(res)
-        except Exception:
+        except (ValueError, ConnectionError, TimeoutError) as e:
+            console.print(f"[dim]Translation skipped: {e}[/dim]")
             translated_parts.append(p)
     
     return "\n".join(translated_parts)
 
-def apply_translation(news_item, text, target='id'):
+def apply_translation(news_item: dict[str, Any], text: str, target: str = 'id') -> str:
     """Helper to translate title and text."""
     try:
         orig_title = news_item.get('title', '')
         if orig_title:
             news_item['title'] = GoogleTranslator(source='auto', target=target).translate(orig_title)
-    except:
-        pass
+    except (ValueError, ConnectionError, TimeoutError):
+        pass  # Keep original title on translation failure
     return translate_text(text, target=target)
 
 # --- Article Fetching ---
-def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do_sentiment=False, topic=""):
+def fetch_single_article(
+    news_item: dict[str, Any], 
+    auto_translate: bool = False, 
+    do_summarize: bool = False, 
+    do_sentiment: bool = False, 
+    topic: str = ""
+) -> dict[str, Any]:
     """Worker function: Download HTML -> Extract Text -> (Optional) Translate/Summarize/Sentiment/AI Tweet"""
     url = news_item.get('url')
     news_item['full_text'] = ""
@@ -674,8 +711,8 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
             raw_html = trafilatura.fetch_url(url)
             if raw_html:
                 extracted_text = trafilatura.extract(raw_html, include_comments=False, include_tables=False)
-        except Exception:
-            pass
+        except (requests.RequestException, OSError) as e:
+            console.print(f"[dim]Layer 1 fetch error: {e}[/dim]")
             
         # If Layer 1 failed to produce meaningful text, try Layer 2
         # --- LAYER 2: Requests Library (Better Headers) ---
@@ -689,13 +726,13 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
             except requests.exceptions.SSLError:
                 # Log SSL error but continue to Layer 3 (cURL) which might handle it differently
                 console.print(f"[dim]SSL Verify error for {url}. Switching to Layer 3 fallback.[/dim]")
-            except Exception:
-                pass
+            except (requests.RequestException, OSError) as e:
+                console.print(f"[dim]Layer 2 fetch error: {e}[/dim]")
 
         # If Layer 2 also failed, try Layer 3
         # --- LAYER 3: System cURL (Linux/Termux Superpower) ---
         # Bypasses many TLS Fingerprint blocks that Python requests fail on
-        if (not extracted_text or len(extracted_text) < 200) and shutil.which("curl"):
+        if (not extracted_text or len(extracted_text) < 200) and shutil.which("curl") and validate_url(url):
             try:
                 cmd = [
                     "curl", "-s", "-L", 
@@ -707,8 +744,8 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
                 if result.returncode == 0 and len(result.stdout) > 500: # Ensure we got substantial data
                     raw_html = result.stdout
                     extracted_text = trafilatura.extract(raw_html, include_comments=False, include_tables=False)
-            except Exception:
-                pass
+            except (subprocess.SubprocessError, OSError) as e:
+                console.print(f"[dim]Layer 3 cURL error: {e}[/dim]")
         
         # Use whatever raw_html we have for metadata fallback if text extraction failed but we have HTML
         downloaded = locals().get('raw_html', None)
@@ -728,8 +765,8 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
                         news_item['formatted_date'] = metadata['date']
                     if metadata.get('sitename'):
                         news_item['source'] = metadata['sitename']
-            except Exception:
-                pass
+            except (ValueError, TypeError, AttributeError):
+                pass  # Metadata extraction is optional
         
         # Fallback: Extract title from <title> tag using regex if trafilatura failed
         if news_item.get('title') == 'URL Processing...' and downloaded:
@@ -776,8 +813,8 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
                                 model=GROQ_MODEL, messages=[{"role": "user", "content": user_prompt}], max_tokens=20
                             )
                             return t_resp.choices[0].message.content.strip().strip('"')
-                    except:
-                        pass
+                    except (ValueError, AttributeError, KeyError, ConnectionError) as e:
+                        console.print(f"[dim]Title generation error: {e}[/dim]")
                     return None
 
                  # Step 1: Active Provider
@@ -802,12 +839,18 @@ def fetch_single_article(news_item, auto_translate=False, do_summarize=False, do
     
     return news_item
 
-def enrich_news_content(news_list, do_translate=False, do_summarize=False, do_sentiment=False, topic=""):
+def enrich_news_content(
+    news_list: list[dict[str, Any]], 
+    do_translate: bool = False, 
+    do_summarize: bool = False, 
+    do_sentiment: bool = False, 
+    topic: str = ""
+) -> list[dict[str, Any]]:
     """Enrich news with full text, translation, summary, sentiment, and AI tweet."""
     if not news_list:
         return []
     
-    features = []
+    features: list[str] = []
     if do_translate:
         features.append("translate")
     if do_summarize:
@@ -821,7 +864,7 @@ def enrich_news_content(news_list, do_translate=False, do_summarize=False, do_se
     
     console.print(f"\n[bold cyan]⚡ Turbo Mode:[/bold cyan] {action_msg} untuk {len(news_list)} berita...")
     
-    enriched_results = []
+    enriched_results: list[dict[str, Any]] = []
     
     with Progress(
         SpinnerColumn(),
@@ -842,7 +885,8 @@ def enrich_news_content(news_list, do_translate=False, do_summarize=False, do_se
                 try:
                     data = future.result()
                     enriched_results.append(data)
-                except Exception:
+                except (OSError, RuntimeError) as e:
+                    console.print(f"[dim]Article fetch error: {e}[/dim]")
                     item = future_to_news[future]
                     item['full_text'] = ""
                     enriched_results.append(item)
@@ -851,9 +895,9 @@ def enrich_news_content(news_list, do_translate=False, do_summarize=False, do_se
     return enriched_results
 
 # --- Filtering ---
-def filter_recent_news(news_list, days=2):
-    recent_news = []
-    seen_titles = set()
+def filter_recent_news(news_list: list[dict[str, Any]], days: int = 2) -> list[dict[str, Any]]:
+    recent_news: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
     cutoff_date = datetime.now().astimezone() - timedelta(days=days)
     
     console.print("[dim]Menyaring berita terbaru & menghapus duplikat...[/dim]")
@@ -881,7 +925,7 @@ def filter_recent_news(news_list, days=2):
     return recent_news
 
 # --- Search ---
-def search_topic(topic, region='wt-wt', max_results=50):
+def search_topic(topic: str, region: str = 'wt-wt', max_results: int = 50) -> list[dict[str, Any]]:
     console.print(f"\n[bold green]🔍 Mencari:[/bold green] '{topic}'")
     
     # Check cache
@@ -891,7 +935,7 @@ def search_topic(topic, region='wt-wt', max_results=50):
         console.print("[dim]📦 Menggunakan cache...[/dim]")
         return cached
     
-    results = []
+    results: list[dict[str, Any]] = []
     attempt = 0
     
     while attempt < MAX_RETRIES:
@@ -920,7 +964,7 @@ def search_topic(topic, region='wt-wt', max_results=50):
     return results
 
 # --- Save Functions ---
-def get_dated_output_path(filename):
+def get_dated_output_path(filename: str) -> str:
     """Generate path with date-based subdirectory structure and sanitized filename."""
     # Sanitize filename to prevent path traversal
     filename = re.sub(r'[^\w\.-]', '_', os.path.basename(filename))
@@ -931,7 +975,7 @@ def get_dated_output_path(filename):
         os.makedirs(target_dir)
     return os.path.join(target_dir, filename)
 
-def save_to_csv(news_list, filename):
+def save_to_csv(news_list: list[dict[str, Any]], filename: str) -> None:
     if not news_list:
         return
     ensure_output_dir()
@@ -949,7 +993,7 @@ def save_to_csv(news_list, filename):
     except IOError as e:
         console.print(f"[red]❌ Gagal CSV: {e}[/red]")
 
-def save_to_json(news_list, filename):
+def save_to_json(news_list: list[dict[str, Any]], filename: str) -> None:
     if not news_list:
         return
     ensure_output_dir()
