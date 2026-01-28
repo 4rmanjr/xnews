@@ -26,14 +26,36 @@ MAX_THREADS = 10
 TIMEOUT_SECONDS = 15
 CACHE_TTL_HOURS = 1
 
-# --- Text Limits ---
+# --- Text & Processing Limits ---
 class TextLimits:
-    GROQ_MAX_INPUT = 15000
-    GEMINI_MAX_INPUT = 100000
-    COMBINED_MAX_INPUT = 5000
-    SENTIMENT_SAMPLE = 1000
-    TRANSLATION_CHUNK = 4500
-    TWEET_MAX_LENGTH = 2000
+    """Named constants for text processing limits (replacing magic numbers)."""
+    
+    # AI Input Limits
+    GROQ_MAX_INPUT = 15000           # Max chars to send to Groq
+    GEMINI_MAX_INPUT = 100000        # Max chars to send to Gemini
+    COMBINED_MAX_INPUT = 5000        # Max chars for combined summary+tweet
+    
+    # AI Output Limits  
+    TWEET_MAX_LENGTH = 2000          # Max tweet draft length
+    SUMMARY_MAX_TOKENS = 1024        # Token limit for summaries
+    TWEET_MAX_TOKENS = 300           # Token limit for tweets
+    COMBINED_MAX_TOKENS = 800        # Token limit for combined output
+    
+    # Text Processing
+    SENTIMENT_SAMPLE = 1000          # Chars to analyze for sentiment
+    TRANSLATION_CHUNK = 4500         # Max chars per translation chunk
+    MIN_ARTICLE_LENGTH = 100         # Min chars for valid article
+    MIN_EXTRACTED_LENGTH = 200       # Min chars for valid extraction
+    
+    # Display & Export
+    TABLE_MAX_ITEMS = 10             # Max items in results table
+    MARKDOWN_TRUNCATE = 10000        # Max chars in markdown export
+    TITLE_MAX_LENGTH = 20            # Max title length for filenames
+    
+    # Filtering
+    DEFAULT_MAX_RESULTS = 50         # Default search results limit
+    DEFAULT_FILTER_DAYS = 2          # Default days filter
+    DUPLICATE_THRESHOLD = 0.85       # Similarity threshold for duplicates
 
 # --- Groq Configuration ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

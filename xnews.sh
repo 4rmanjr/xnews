@@ -8,7 +8,8 @@ DIR=$(dirname "$REAL_PATH")
 # Konfigurasi (Gunakan Absolute Path)
 VENV_DIR="$DIR/venv"
 REQ_FILE="$DIR/requirements.txt"
-SCRIPT="$DIR/news_fetcher.py"
+# Use modular version (xnews package)
+SCRIPT_MODULE="xnews.main"
 INSTALLED_MARKER="$VENV_DIR/.deps_installed"
 
 # Deteksi Termux
@@ -330,11 +331,11 @@ if [ ! -f "$DIR/.env" ]; then
     echo ""
 fi
 
-# 6. Jalankan Aplikasi
+# 6. Jalankan Aplikasi (Modular Version)
 echo ""
 print_step "▶️  Menjalankan aplikasi..."
 echo "────────────────────────────────────────────────────────────────"
-python "$SCRIPT" "$@"
+python -m "$SCRIPT_MODULE" "$@"
 EXIT_CODE=$?
 echo "────────────────────────────────────────────────────────────────"
 
